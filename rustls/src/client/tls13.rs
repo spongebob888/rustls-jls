@@ -27,10 +27,7 @@ use crate::msgs::ccs::ChangeCipherSpecPayload;
 use crate::msgs::codec::{Codec, Reader};
 use crate::msgs::enums::{ExtensionType, KeyUpdateRequest};
 use crate::msgs::handshake::{
-    CERTIFICATE_MAX_SIZE_LIMIT, CertificatePayloadTls13, ClientExtension, EchConfigPayload,
-    HandshakeMessagePayload, HandshakePayload, HasServerExtensions, KeyShareEntry,
-    NewSessionTicketPayloadTls13, PresharedKeyIdentity, PresharedKeyOffer, ServerExtension,
-    ServerHelloPayload,
+    CertificatePayloadTls13, ClientExtension, EchConfigPayload, HandshakeMessagePayload, HandshakePayload, HasServerExtensions, KeyShareEntry, NewSessionTicketPayloadTls13, PresharedKeyIdentity, PresharedKeyOffer, Random, ServerExtension, ServerHelloPayload, CERTIFICATE_MAX_SIZE_LIMIT
 };
 use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;

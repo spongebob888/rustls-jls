@@ -234,7 +234,6 @@ pub enum PeerMisbehaved {
     InvalidCertCompression,
     InvalidMaxEarlyDataSize,
     InvalidKeyShare,
-    InvalidSctList,
     KeyEpochWithPendingFragment,
     KeyUpdateReceivedInQuicConnection,
     MessageInterleavedWithHandshakeMessage,
@@ -758,9 +757,6 @@ impl fmt::Display for Error {
             Self::InvalidCertRevocationList(err) => {
                 write!(f, "invalid certificate revocation list: {:?}", err)
             }
-            Self::InvalidCertRevocationList(ref err) => {
-                write!(f, "invalid certificate revocation list: {:?}", err)
-            }
             Self::NoCertificatesPresented => write!(f, "peer sent no certificates"),
             Self::UnsupportedNameType => write!(f, "presented server name type wasn't supported"),
             Self::DecryptError => write!(f, "cannot decrypt peer's message"),
@@ -771,7 +767,6 @@ impl fmt::Display for Error {
             Self::PeerSentOversizedRecord => write!(f, "peer sent excess record size"),
             Self::HandshakeNotComplete => write!(f, "handshake not complete"),
             Self::NoApplicationProtocol => write!(f, "peer doesn't support any known protocol"),
-            Self::InvalidSct(ref err) => write!(f, "invalid certificate timestamp: {:?}", err),
             Self::FailedToGetCurrentTime => write!(f, "failed to get current time"),
             Self::FailedToGetRandomBytes => write!(f, "failed to get random bytes"),
             Self::BadMaxFragmentSize => {
@@ -1013,7 +1008,6 @@ mod tests {
     #[test]
     fn smoke() {
         use crate::enums::{AlertDescription, ContentType, HandshakeType};
-        use sct;
 
         let all = vec![
             Error::InappropriateMessage {

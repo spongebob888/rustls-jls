@@ -22,6 +22,8 @@ members = [
   "rustls-provider-test",
   # rustls cryptography provider for fuzzing
   "rustls-fuzzing-provider",
+  # jls test
+  "jls-test"
 ]
 
 ## Deliberately not included in `members`:

@@ -80,7 +80,6 @@ struct Options {
     min_version: Option<ProtocolVersion>,
     max_version: Option<ProtocolVersion>,
     server_ocsp_response: Vec<u8>,
-    server_sct_list: Vec<u8>,
     use_signing_scheme: u16,
     groups: Option<Vec<NamedGroup>>,
     export_keying_material: usize,
@@ -131,7 +130,6 @@ impl Options {
             resume_with_tickets_disabled: false,
             host_name: "example.com".to_string(),
             use_sni: false,
-            send_sct: false,
             queue_data: false,
             queue_data_on_resume: false,
             only_write_one_byte_after_handshake: false,
@@ -152,7 +150,6 @@ impl Options {
             min_version: None,
             max_version: None,
             server_ocsp_response: vec![],
-            server_sct_list: vec![],
             use_signing_scheme: 0,
             groups: None,
             export_keying_material: 0,
@@ -453,10 +450,6 @@ impl ServerCertVerifier for DummyServerAuth {
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         self.parent.supported_verify_schemes()
     }
-
-    fn request_scts(&self) -> bool {
-        self.send_sct
-    }
 }
 
 #[derive(Debug)]
@@ -635,12 +628,7 @@ fn make_server_cfg(opts: &Options) -> Arc<ServerConfig> {
         .with_protocol_versions(&opts.supported_versions())
         .unwrap()
         .with_client_cert_verifier(client_auth)
-        .with_single_cert_with_ocsp_and_sct(
-            cert.clone(),
-            key,
-            opts.server_ocsp_response.clone(),
-            opts.server_sct_list.clone(),
-        )
+        .with_single_cert_with_ocsp(cert.clone(), key, opts.server_ocsp_response.clone())
         .unwrap();
 
     cfg.session_storage = ServerCacheWithResumptionDelay::new(opts.resumption_delay);
@@ -1425,6 +1413,7 @@ pub fn main() {
             "-enable-ed25519" |
             "-on-resume-expect-no-offer-early-data" |
             "-expect-tls13-downgrade" |
+            "-enable-signed-cert-timestamps" |
             "-expect-session-id" => {
                 println!("not checking {}; NYI", arg);
             }
@@ -1469,16 +1458,6 @@ pub fn main() {
                 opts.server_ocsp_response = BASE64_STANDARD.decode(args.remove(0).as_bytes())
                     .expect("invalid base64");
             }
-            "-signed-cert-timestamps" => {
-                opts.server_sct_list = BASE64_STANDARD.decode(args.remove(0).as_bytes())
-                    .expect("invalid base64");
-
-                if opts.server_sct_list.len() == 2 &&
-                    opts.server_sct_list[0] == 0x00 &&
-                    opts.server_sct_list[1] == 0x00 {
-                    quit(":INVALID_SCT_LIST:");
-                }
-            }
             "-select-alpn" => {
                 opts.protocols.push(args.remove(0));
             }
@@ -1513,9 +1492,6 @@ pub fn main() {
             }
             "-use-null-client-ca-list" => {
                 opts.offer_no_client_cas = true;
-            }
-            "-enable-signed-cert-timestamps" => {
-                opts.send_sct = true;
             }
             "-enable-early-data" => {
                 opts.tickets = false;

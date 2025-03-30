@@ -539,13 +539,12 @@ mod client_hello {
         };
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
-        let fake_random = config.jls_config.build_fake_random(
+        let fake_random = config.jls_config.inner.build_fake_random(
             randoms.server[0..16]
                 .try_into()
                 .unwrap(),
             &buf,
         );
-        randoms.server = fake_random;
 
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,
@@ -561,8 +560,7 @@ mod client_hello {
                 }),
             }),
         };
-        //TODO server hello fake random generation
-        // let sh = config.jls_config.
+
         cx.common.check_aligned_handshake()?;
 
         let client_hello_hash = transcript.hash_given(&[]);

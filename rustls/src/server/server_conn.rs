@@ -6,6 +6,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 #[cfg(feature = "std")]
 use std::io;
+use std::string::String;
 
 use pki_types::{DnsName, UnixTime};
 
@@ -935,60 +936,8 @@ impl UnbufferedServerConnection {
         self.inner.dangerous_extract_secrets()
     }
 
-    /// Read data from upstream to forward
-    pub fn read_upstream(&mut self, rd: &mut dyn io::Read) -> Result<usize, io::Error> {
-        let buf_new;
-        if let Some(conn) = &mut self.inner.core.data.jls_conn {
-            let buf = &mut conn.from_upstream;
-
-            let ret_val = rd.read(buf);
-            if let Ok(n) = ret_val {
-                buf_new = buf[0..n].to_vec();
-                self.inner.sendable_tls.append(buf_new);
-            }
-            ret_val
-        } else {
-            Ok(0)
-        }
-    }
-
-    /// Whether the  write buffer is empty
-    pub fn wants_write_upstream(&self) -> bool {
-        if let Some(conn) = &self.inner.core.data.jls_conn {
-            self.inner
-                .core
-                .message_deframer
-                .has_pending()
-                || !conn.to_upstream.is_empty()
-        } else {
-            false
-        }
-    }
-    /// Write data to upstream for forward
-    pub fn write_upstream(&mut self, wr: &mut dyn io::Write) -> Result<usize, io::Error> {
-        if let Some(conn) = &mut self.inner.core.data.jls_conn {
-            let buf = self
-                .inner
-                .core
-                .message_deframer
-                .pop_all();
-            if !buf.is_empty() {
-                conn.to_upstream.append(buf);
-            }
-            if !conn.to_upstream.is_empty() {
-                return conn.to_upstream.write_to(wr);
-            }
-            Err(io::Error::new(
-                io::ErrorKind::WriteZero,
-                "Nothing to write to upstream",
-            ))
-        } else {
-            Ok(0)
-        }
-    }
-
     /// Get upstream address
-    pub fn get_upstream_addr(&self) -> Option<std::net::SocketAddr> {
+    pub fn get_upstream_addr(&self) -> Option<String> {
         self.inner
             .core
             .data
@@ -1266,8 +1215,8 @@ impl ServerConnectionData {
         self.sni.as_ref().map(AsRef::as_ref)
     }
 
-    pub(crate) fn get_jls_upstream_addr(&self) -> Option<std::net::SocketAddr> {
-        Some(self.jls_conn.as_ref()?.upstream_addr)
+    pub(crate) fn get_jls_upstream_addr(&self) -> Option<String> {
+        self.jls_conn.as_ref()?.upstream_addr.clone()
     }
 }
 

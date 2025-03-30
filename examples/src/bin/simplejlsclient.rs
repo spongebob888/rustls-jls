@@ -9,28 +9,17 @@
 /// that is sensible outside of example code.
 use std::sync::Arc;
 
-use std::io::{stdout, Read, Write};
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use rustls::{OwnedTrustAnchor, RootCertStore, JlsConfig};
+use rustls::{RootCertStore, JlsConfig};
 
 fn main() {
     env_logger::init();
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(
-        webpki_roots::TLS_SERVER_ROOTS
-            .0
-            .iter()
-            .map(|ta| {
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            }),
-    );
+    let root_store = RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+    };
     let mut config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
         .with_root_certificates(root_store)
         .with_no_client_auth();
     config.jls_config = JlsConfig::new("3070111071563328618171495819203123318",

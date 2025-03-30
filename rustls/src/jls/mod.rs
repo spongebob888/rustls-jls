@@ -1,8 +1,15 @@
 
-#[cfg(feature = "logging")]
+use std::string::String;
+
 use crate::log::trace;
 use crate::msgs::handshake::{ClientExtension, ClientHelloPayload};
+
+#[cfg(feature = "ring")]
 use ring::digest::{digest, SHA256};
+#[cfg(not(feature = "ring"))]
+use aws_lc_rs::digest::{digest, SHA256};
+use alloc::vec::Vec;
+use alloc::vec;
 
 // use aes_gcm to support 512bits long nonce (not supported by ring)
 use aes_gcm::{

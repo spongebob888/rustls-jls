@@ -78,9 +78,6 @@ pub trait ServerCertVerifier: Debug + Send + Sync {
     /// the implementer to handle invalid data. It is recommended that the implementer returns
     /// [`Error::InvalidCertificate(CertificateError::BadEncoding)`] when these cases are encountered.
     ///
-    /// `scts` contains the Signed Certificate Timestamps (SCTs) the server
-    /// sent with the end-entity certificate, if any.
-    ///
     /// [Certificate]: https://datatracker.ietf.org/doc/html/rfc8446#section-4.4.2
     fn verify_server_cert(
         &self,

@@ -44,6 +44,9 @@ pub(super) type NextState<'a> = Box<dyn State<ClientConnectionData> + 'a>;
 pub(super) type NextStateOrError<'a> = Result<NextState<'a>, Error>;
 pub(super) type ClientContext<'a> = crate::common_state::Context<'a, ClientConnectionData>;
 
+
+use crate::msgs::codec::Codec; //jls
+
 fn find_session(
     server_name: &ServerName<'static>,
     config: &ClientConfig,
@@ -177,7 +180,6 @@ pub(super) fn start_handshake(
         None,
         key_share,
         extra_exts,
-        may_send_sct_list,
         None,
         ClientHelloInput {
             config,
@@ -228,7 +230,6 @@ fn emit_client_hello_for_retry(
     retryreq: Option<&HelloRetryRequest>,
     key_share: Option<Box<dyn ActiveKeyExchange>>,
     extra_exts: Vec<ClientExtension>,
-    may_send_sct_list: bool,
     suite: Option<SupportedCipherSuite>,
     mut input: ClientHelloInput,
     cx: &mut ClientContext<'_>,
@@ -506,6 +507,9 @@ fn emit_client_hello_for_retry(
     };
 
     //JLS fake random generation
+    if let HandshakePayload::ClientHello(inner)= &mut chp.payload {
+        inner.random = Random([0;32]);
+    }
     let mut buf = Vec::<u8>::new();
     chp.encode(&mut buf);
     let fake_random = input.config.jls_config.
@@ -515,6 +519,7 @@ fn emit_client_hello_for_retry(
     if let HandshakePayload::ClientHello(inner)= &mut chp.payload {
         inner.random = input.random;
     }
+    // End JLS Handling
 
     let early_key_schedule = match (ech_state.as_mut(), tls13_session) {
         // If we're performing ECH and resuming, then the PSK binder will have been dealt with
@@ -1151,12 +1156,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
             cx.data.early_data.rejected();
         }
 
-        let may_send_sct_list = self
-            .next
-            .input
-            .hello
-            .server_may_send_sct_list();
-
         let key_share = match req_group {
             Some(group) if group != offered_key_share.group() => {
                 let Some(skxg) = config.find_kx_group(group, ProtocolVersion::TLSv1_3) else {
@@ -1177,7 +1176,6 @@ impl ExpectServerHelloOrHelloRetryRequest {
             Some(hrr),
             Some(key_share),
             self.extra_exts,
-            may_send_sct_list,
             Some(cs),
             self.next.input,
             cx,

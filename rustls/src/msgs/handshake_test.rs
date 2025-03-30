@@ -141,7 +141,7 @@ fn refuses_server_ext_with_unparsed_bytes() {
 
 #[test]
 fn refuses_certificate_ext_with_unparsed_bytes() {
-    let bytes = [0x00u8, 0x12, 0x00, 0x03, 0x00, 0x00, 0x01];
+    let bytes = [0x00u8, 0x05, 0x00, 0x03, 0x00, 0x00, 0x01];
     let mut rd = Reader::init(&bytes);
     assert!(CertificateExtension::read(&mut rd).is_err());
 }
