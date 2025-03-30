@@ -1,3 +1,8 @@
+use core::fmt::Debug;
+
+#[cfg(all(doc, feature = "std"))]
+use crate::KeyLogFile;
+
 /// This trait represents the ability to do something useful
 /// with key material, such as logging it to a file for debugging.
 ///
@@ -8,9 +13,9 @@
 /// You'll likely want some interior mutability in your
 /// implementation to make this useful.
 ///
-/// See [`KeyLogFile`](crate::KeyLogFile) that implements the standard
+/// See [`KeyLogFile`] that implements the standard
 /// `SSLKEYLOGFILE` environment variable behaviour.
-pub trait KeyLog: Send + Sync {
+pub trait KeyLog: Debug + Send + Sync {
     /// Log the given `secret`.  `client_random` is provided for
     /// session identification.  `label` describes precisely what
     /// `secret` means:
@@ -30,7 +35,7 @@ pub trait KeyLog: Send + Sync {
     ///   in a TLSv1.3 session.
     ///
     /// These strings are selected to match the NSS key log format:
-    /// <https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format>
+    /// <https://nss-crypto.org/reference/security/nss/legacy/key_log_format/index.html>
     fn log(&self, label: &str, client_random: &[u8], secret: &[u8]);
 
     /// Indicates whether the secret with label `label` will be logged.
@@ -44,6 +49,7 @@ pub trait KeyLog: Send + Sync {
 }
 
 /// KeyLog that does exactly nothing.
+#[derive(Debug)]
 pub struct NoKeyLog;
 
 impl KeyLog for NoKeyLog {

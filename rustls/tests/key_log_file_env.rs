@@ -21,50 +21,27 @@
 //! file was created successfully, with the right permissions, etc., and that it
 //! contains something like what we expect.
 
-#[allow(dead_code)]
+#![allow(clippy::duplicate_mod)]
+
+use std::env;
+use std::io::Write;
+
+use super::*;
+
 mod common;
-
-use crate::common::{
-    do_handshake, make_client_config_with_versions, make_pair_for_arc_configs, make_server_config,
-    transfer, KeyType,
+use common::{
+    Arc, KeyType, do_handshake, make_client_config_with_versions, make_pair_for_arc_configs,
+    make_server_config, transfer,
 };
-use std::{
-    env,
-    io::Write,
-    sync::{Arc, Mutex, Once},
-};
-
-/// Approximates `#[serial]` from the `serial_test` crate.
-///
-/// No attempt is made to recover from a poisoned mutex, which will
-/// happen when `f` panics. In other words, all the tests that use
-/// `serialized` will start failing after one test panics.
-fn serialized(f: impl FnOnce()) {
-    // Ensure every test is run serialized
-    // TODO: Use `std::sync::Lazy` once that is stable.
-    static mut MUTEX: Option<Mutex<()>> = None;
-    static ONCE: Once = Once::new();
-    ONCE.call_once(|| unsafe {
-        MUTEX = Some(Mutex::new(()));
-    });
-    let mutex = unsafe { MUTEX.as_mut() };
-
-    let _guard = mutex.unwrap().lock().unwrap();
-
-    // XXX: NOT thread safe.
-    env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
-
-    f()
-}
 
 #[test]
 fn exercise_key_log_file_for_client() {
     serialized(|| {
-        let server_config = Arc::new(make_server_config(KeyType::Rsa));
-        env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
+        let server_config = Arc::new(make_server_config(KeyType::Rsa2048));
+        unsafe { env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt") };
 
         for version in rustls::ALL_VERSIONS {
-            let mut client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
+            let mut client_config = make_client_config_with_versions(KeyType::Rsa2048, &[version]);
             client_config.key_log = Arc::new(rustls::KeyLogFile::new());
 
             let (mut client, mut server) =
@@ -82,15 +59,15 @@ fn exercise_key_log_file_for_client() {
 #[test]
 fn exercise_key_log_file_for_server() {
     serialized(|| {
-        let mut server_config = make_server_config(KeyType::Rsa);
+        let mut server_config = make_server_config(KeyType::Rsa2048);
 
-        env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt");
+        unsafe { env::set_var("SSLKEYLOGFILE", "./sslkeylogfile.txt") };
         server_config.key_log = Arc::new(rustls::KeyLogFile::new());
 
         let server_config = Arc::new(server_config);
 
         for version in rustls::ALL_VERSIONS {
-            let client_config = make_client_config_with_versions(KeyType::Rsa, &[version]);
+            let client_config = make_client_config_with_versions(KeyType::Rsa2048, &[version]);
             let (mut client, mut server) =
                 make_pair_for_arc_configs(&Arc::new(client_config), &server_config);
 

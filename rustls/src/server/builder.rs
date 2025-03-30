@@ -1,37 +1,36 @@
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+
+use pki_types::{CertificateDer, PrivateKeyDer};
+
+use super::{ResolvesServerCert, ServerConfig, handy};
 use crate::builder::{ConfigBuilder, WantsVerifier};
 use crate::error::Error;
-use crate::key;
-use crate::kx::SupportedKxGroup;
-use crate::server::handy;
-use crate::server::{ResolvesServerCert, ServerConfig};
-use crate::suites::SupportedCipherSuite;
-use crate::verify;
-use crate::versions;
-use crate::NoKeyLog;
-
-use std::marker::PhantomData;
-use std::sync::Arc;
+use crate::sign::{CertifiedKey, SingleCertAndKey};
+use crate::sync::Arc;
+use crate::verify::{ClientCertVerifier, NoClientAuth};
+use crate::{NoKeyLog, compress, versions};
 
 impl ConfigBuilder<ServerConfig, WantsVerifier> {
     /// Choose how to verify client certificates.
     pub fn with_client_cert_verifier(
         self,
-        client_cert_verifier: Arc<dyn verify::ClientCertVerifier>,
+        client_cert_verifier: Arc<dyn ClientCertVerifier>,
     ) -> ConfigBuilder<ServerConfig, WantsServerCert> {
         ConfigBuilder {
             state: WantsServerCert {
-                cipher_suites: self.state.cipher_suites,
-                kx_groups: self.state.kx_groups,
                 versions: self.state.versions,
                 verifier: client_cert_verifier,
             },
+            provider: self.provider,
+            time_provider: self.time_provider,
             side: PhantomData,
         }
     }
 
     /// Disable client authentication.
     pub fn with_no_client_auth(self) -> ConfigBuilder<ServerConfig, WantsServerCert> {
-        self.with_client_cert_verifier(verify::NoClientAuth::boxed())
+        self.with_client_cert_verifier(Arc::new(NoClientAuth))
     }
 }
 
@@ -41,10 +40,8 @@ impl ConfigBuilder<ServerConfig, WantsVerifier> {
 /// For more information, see the [`ConfigBuilder`] documentation.
 #[derive(Clone, Debug)]
 pub struct WantsServerCert {
-    cipher_suites: Vec<SupportedCipherSuite>,
-    kx_groups: Vec<&'static SupportedKxGroup>,
     versions: versions::EnabledVersions,
-    verifier: Arc<dyn verify::ClientCertVerifier>,
+    verifier: Arc<dyn ClientCertVerifier>,
 }
 
 impl ConfigBuilder<ServerConfig, WantsServerCert> {
@@ -58,61 +55,74 @@ impl ConfigBuilder<ServerConfig, WantsServerCert> {
     /// disregarded.
     ///
     /// `cert_chain` is a vector of DER-encoded certificates.
-    /// `key_der` is a DER-encoded RSA, ECDSA, or Ed25519 private key.
+    /// `key_der` is a DER-encoded private key as PKCS#1, PKCS#8, or SEC1. The
+    /// `aws-lc-rs` and `ring` [`CryptoProvider`][crate::CryptoProvider]s support
+    /// all three encodings, but other `CryptoProviders` may not.
     ///
-    /// This function fails if `key_der` is invalid.
+    /// This function fails if `key_der` is invalid, or if the
+    /// `SubjectPublicKeyInfo` from the private key does not match the public
+    /// key for the end-entity certificate from the `cert_chain`.
     pub fn with_single_cert(
         self,
-        cert_chain: Vec<key::Certificate>,
-        key_der: key::PrivateKey,
+        cert_chain: Vec<CertificateDer<'static>>,
+        key_der: PrivateKeyDer<'static>,
     ) -> Result<ServerConfig, Error> {
-        let resolver = handy::AlwaysResolvesChain::new(cert_chain, &key_der)?;
-        Ok(self.with_cert_resolver(Arc::new(resolver)))
+        let certified_key = CertifiedKey::from_der(cert_chain, key_der, self.crypto_provider())?;
+        Ok(self.with_cert_resolver(Arc::new(SingleCertAndKey::from(certified_key))))
     }
 
-    /// Sets a single certificate chain, matching private key, OCSP
-    /// response and SCTs.  This certificate and key is used for all
+    /// Sets a single certificate chain, matching private key and optional OCSP
+    /// response.  This certificate and key is used for all
     /// subsequent connections, irrespective of things like SNI hostname.
     ///
     /// `cert_chain` is a vector of DER-encoded certificates.
-    /// `key_der` is a DER-encoded RSA, ECDSA, or Ed25519 private key.
+    /// `key_der` is a DER-encoded private key as PKCS#1, PKCS#8, or SEC1. The
+    /// `aws-lc-rs` and `ring` [`CryptoProvider`][crate::CryptoProvider]s support
+    /// all three encodings, but other `CryptoProviders` may not.
     /// `ocsp` is a DER-encoded OCSP response.  Ignored if zero length.
-    /// `scts` is an `SignedCertificateTimestampList` encoding (see RFC6962)
-    /// and is ignored if empty.
     ///
-    /// This function fails if `key_der` is invalid.
-    pub fn with_single_cert_with_ocsp_and_sct(
+    /// This function fails if `key_der` is invalid, or if the
+    /// `SubjectPublicKeyInfo` from the private key does not match the public
+    /// key for the end-entity certificate from the `cert_chain`.
+    pub fn with_single_cert_with_ocsp(
         self,
-        cert_chain: Vec<key::Certificate>,
-        key_der: key::PrivateKey,
+        cert_chain: Vec<CertificateDer<'static>>,
+        key_der: PrivateKeyDer<'static>,
         ocsp: Vec<u8>,
-        scts: Vec<u8>,
     ) -> Result<ServerConfig, Error> {
-        let resolver =
-            handy::AlwaysResolvesChain::new_with_extras(cert_chain, &key_der, ocsp, scts)?;
-        Ok(self.with_cert_resolver(Arc::new(resolver)))
+        let mut certified_key =
+            CertifiedKey::from_der(cert_chain, key_der, self.crypto_provider())?;
+        certified_key.ocsp = Some(ocsp);
+        Ok(self.with_cert_resolver(Arc::new(SingleCertAndKey::from(certified_key))))
     }
 
     /// Sets a custom [`ResolvesServerCert`].
     pub fn with_cert_resolver(self, cert_resolver: Arc<dyn ResolvesServerCert>) -> ServerConfig {
         ServerConfig {
-            cipher_suites: self.state.cipher_suites,
-            kx_groups: self.state.kx_groups,
+            provider: self.provider,
             verifier: self.state.verifier,
             cert_resolver,
             ignore_client_order: false,
             max_fragment_size: None,
+            #[cfg(feature = "std")]
             session_storage: handy::ServerSessionMemoryCache::new(256),
+            #[cfg(not(feature = "std"))]
+            session_storage: Arc::new(handy::NoServerSessionStorage {}),
             ticketer: Arc::new(handy::NeverProducesTickets {}),
             alpn_protocols: Vec::new(),
             versions: self.state.versions,
             key_log: Arc::new(NoKeyLog {}),
-            #[cfg(feature = "secret_extraction")]
             enable_secret_extraction: false,
             max_early_data_size: 0,
             send_half_rtt_data: false,
-            send_tls13_tickets: 4,
             jls_config: crate::jls::server::JlsServerConfig::default(),
+            send_tls13_tickets: 2,
+            #[cfg(feature = "tls12")]
+            require_ems: cfg!(feature = "fips"),
+            time_provider: self.time_provider,
+            cert_compressors: compress::default_cert_compressors().to_vec(),
+            cert_compression_cache: Arc::new(compress::CompressionCache::default()),
+            cert_decompressors: compress::default_cert_decompressors().to_vec(),
         }
     }
 }

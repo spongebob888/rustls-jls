@@ -1,20 +1,35 @@
-use std::process;
+//! This is an example client that uses rustls for TLS, and [mio] for I/O.
+//!
+//! It uses command line flags to demonstrate configuring a TLS client that may:
+//!  * Specify supported TLS protocol versions
+//!  * Customize cipher suite selection
+//!  * Perform client certificate authentication
+//!  * Disable session tickets
+//!  * Disable SNI
+//!  * Disable certificate validation (insecure)
+//!
+//! See `--help` output for more details.
+//!
+//! You may set the `SSLKEYLOGFILE` env var when using this example to write a
+//! log file with key material (insecure) for debugging purposes. See [`rustls::KeyLog`]
+//! for more information.
+//!
+//! Note that `unwrap()` is used to deal with networking errors; this is not something
+//! that is sensible outside of example code.
+//!
+//! [mio]: https://docs.rs/mio/latest/mio/
+
+use std::io::{self, Read, Write};
+use std::net::ToSocketAddrs;
 use std::sync::Arc;
+use std::{process, str};
 
+use clap::Parser;
 use mio::net::TcpStream;
-
-use std::fs;
-use std::io;
-use std::io::{BufReader, Read, Write};
-use std::net::SocketAddr;
-use std::str;
-
-#[macro_use]
-extern crate serde_derive;
-
-use docopt::Docopt;
-
-use rustls::{OwnedTrustAnchor, RootCertStore};
+use rustls::RootCertStore;
+use rustls::crypto::{CryptoProvider, aws_lc_rs as provider};
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 
 const CLIENT: mio::Token = mio::Token(0);
 
@@ -30,7 +45,7 @@ struct TlsClient {
 impl TlsClient {
     fn new(
         sock: TcpStream,
-        server_name: rustls::ServerName,
+        server_name: ServerName<'static>,
         cfg: Arc<rustls::ClientConfig>,
     ) -> Self {
         Self {
@@ -100,7 +115,7 @@ impl TlsClient {
         let io_state = match self.tls_conn.process_new_packets() {
             Ok(io_state) => io_state,
             Err(err) => {
-                println!("TLS error: {:?}", err);
+                println!("TLS error: {err}");
                 self.closing = true;
                 return;
             }
@@ -111,8 +126,7 @@ impl TlsClient {
         //
         // Read it and then write it to stdout.
         if io_state.plaintext_bytes_to_read() > 0 {
-            let mut plaintext = Vec::new();
-            plaintext.resize(io_state.plaintext_bytes_to_read(), 0u8);
+            let mut plaintext = vec![0u8; io_state.plaintext_bytes_to_read()];
             self.tls_conn
                 .reader()
                 .read_exact(&mut plaintext)
@@ -122,7 +136,7 @@ impl TlsClient {
                 .unwrap();
         }
 
-        // If wethat fails, the peer might have started a clean TLS-level
+        // If that fails, the peer might have started a clean TLS-level
         // session closure.
         if io_state.peer_has_closed() {
             self.clean_closure = true;
@@ -187,79 +201,78 @@ impl io::Read for TlsClient {
     }
 }
 
-const USAGE: &str = "
-Connects to the TLS server at hostname:PORT.  The default PORT
-is 443.  By default, this reads a request from stdin (to EOF)
-before making the connection.  --http replaces this with a
-basic HTTP GET request for /.
-
-If --cafile is not supplied, a built-in set of CA certificates
-are used from the webpki-roots crate.
-
-Usage:
-  tlsclient-mio [options] [--suite SUITE ...] [--proto PROTO ...] [--protover PROTOVER ...] <hostname>
-  tlsclient-mio (--version | -v)
-  tlsclient-mio (--help | -h)
-
-Options:
-    -p, --port PORT     Connect to PORT [default: 443].
-    --http              Send a basic HTTP GET request for /.
-    --cafile CAFILE     Read root certificates from CAFILE.
-    --auth-key KEY      Read client authentication key from KEY.
-    --auth-certs CERTS  Read client authentication certificates from CERTS.
-                        CERTS must match up with KEY.
-    --protover VERSION  Disable default TLS version list, and use
-                        VERSION instead.  May be used multiple times.
-    --suite SUITE       Disable default cipher suite list, and use
-                        SUITE instead.  May be used multiple times.
-    --proto PROTOCOL    Send ALPN extension containing PROTOCOL.
-                        May be used multiple times to offer several protocols.
-    --no-tickets        Disable session ticket support.
-    --no-sni            Disable server name indication support.
-    --insecure          Disable certificate verification.
-    --verbose           Emit log output.
-    --max-frag-size M   Limit outgoing messages to M bytes.
-    --version, -v       Show tool version.
-    --help, -h          Show this screen.
-";
-
-#[derive(Debug, Deserialize)]
+/// Connects to the TLS server at hostname:PORT.  The default PORT
+/// is 443.  By default, this reads a request from stdin (to EOF)
+/// before making the connection.  --http replaces this with a
+/// basic HTTP GET request for /.
+///
+/// If --cafile is not supplied, a built-in set of CA certificates
+/// are used from the webpki-roots crate.
+#[derive(Debug, Parser)]
 struct Args {
-    flag_port: Option<u16>,
-    flag_http: bool,
-    flag_verbose: bool,
-    flag_protover: Vec<String>,
-    flag_suite: Vec<String>,
-    flag_proto: Vec<String>,
-    flag_max_frag_size: Option<usize>,
-    flag_cafile: Option<String>,
-    flag_no_tickets: bool,
-    flag_no_sni: bool,
-    flag_insecure: bool,
-    flag_auth_key: Option<String>,
-    flag_auth_certs: Option<String>,
-    arg_hostname: String,
-}
+    /// Connect to this port
+    #[clap(long, default_value = "443")]
+    port: u16,
 
-// TODO: um, well, it turns out that openssl s_client/s_server
-// that we use for testing doesn't do ipv6.  So we can't actually
-// test ipv6 and hence kill this.
-fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
-    use std::net::ToSocketAddrs;
+    /// Send a basic HTTP GET request for /
+    #[clap(long)]
+    http: bool,
 
-    let addrs = (host, port).to_socket_addrs().unwrap();
-    for addr in addrs {
-        if let SocketAddr::V4(_) = addr {
-            return addr;
-        }
-    }
+    /// Emit log output
+    #[clap(long)]
+    verbose: bool,
 
-    unreachable!("Cannot lookup address");
+    /// Disable default TLS version list, and use
+    /// VERSION instead.  May be used multiple times.
+    #[clap(long)]
+    protover: Vec<String>,
+
+    /// Disable default cipher suite list, and use
+    /// SUITE instead.  May be used multiple times.
+    #[clap(long)]
+    suite: Vec<String>,
+
+    /// Send ALPN extension containing PROTOCOL.
+    /// May be used multiple times to offer several protocols.
+    #[clap(long)]
+    proto: Vec<String>,
+
+    /// Limit outgoing messages to this many bytes
+    #[clap(long)]
+    max_frag_size: Option<usize>,
+
+    /// Read root certificates from this file
+    #[clap(long)]
+    cafile: Option<String>,
+
+    /// Disable session ticket support
+    #[clap(long)]
+    no_tickets: bool,
+
+    /// Disable server name indication support
+    #[clap(long)]
+    no_sni: bool,
+
+    /// Disable certificate verification
+    #[clap(long)]
+    insecure: bool,
+
+    /// Read client authentication key from KEY.
+    #[clap(long)]
+    auth_key: Option<String>,
+
+    /// Read client authentication certificates from CERTS.
+    /// CERTS must match up with KEY.
+    #[clap(long)]
+    auth_certs: Option<String>,
+
+    /// Which hostname/address to connect to
+    hostname: String,
 }
 
 /// Find a ciphersuite with the given name
 fn find_suite(name: &str) -> Option<rustls::SupportedCipherSuite> {
-    for suite in rustls::ALL_CIPHER_SUITES {
+    for suite in provider::ALL_CIPHER_SUITES {
         let sname = format!("{:?}", suite.suite()).to_lowercase();
 
         if sname == name.to_string().to_lowercase() {
@@ -304,67 +317,77 @@ fn lookup_versions(versions: &[String]) -> Vec<&'static rustls::SupportedProtoco
     out
 }
 
-fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
-    let certfile = fs::File::open(filename).expect("cannot open certificate file");
-    let mut reader = BufReader::new(certfile);
-    rustls_pemfile::certs(&mut reader)
-        .unwrap()
-        .iter()
-        .map(|v| rustls::Certificate(v.clone()))
+fn load_certs(filename: &str) -> Vec<CertificateDer<'static>> {
+    CertificateDer::pem_file_iter(filename)
+        .expect("cannot open certificate file")
+        .map(|result| result.unwrap())
         .collect()
 }
 
-fn load_private_key(filename: &str) -> rustls::PrivateKey {
-    let keyfile = fs::File::open(filename).expect("cannot open private key file");
-    let mut reader = BufReader::new(keyfile);
+fn load_private_key(filename: &str) -> PrivateKeyDer<'static> {
+    PrivateKeyDer::from_pem_file(filename).expect("cannot read private key file")
+}
 
-    loop {
-        match rustls_pemfile::read_one(&mut reader).expect("cannot parse private key .pem file") {
-            Some(rustls_pemfile::Item::RSAKey(key)) => return rustls::PrivateKey(key),
-            Some(rustls_pemfile::Item::PKCS8Key(key)) => return rustls::PrivateKey(key),
-            Some(rustls_pemfile::Item::ECKey(key)) => return rustls::PrivateKey(key),
-            None => break,
-            _ => {}
+mod danger {
+    use rustls::DigitallySignedStruct;
+    use rustls::client::danger::HandshakeSignatureValid;
+    use rustls::crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signature};
+    use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+
+    #[derive(Debug)]
+    pub struct NoCertificateVerification(CryptoProvider);
+
+    impl NoCertificateVerification {
+        pub fn new(provider: CryptoProvider) -> Self {
+            Self(provider)
         }
     }
 
-    panic!(
-        "no keys found in {:?} (encrypted keys not supported)",
-        filename
-    );
-}
-
-#[cfg(feature = "dangerous_configuration")]
-mod danger {
-    pub struct NoCertificateVerification {}
-
-    impl rustls::client::ServerCertVerifier for NoCertificateVerification {
+    impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
         fn verify_server_cert(
             &self,
-            _end_entity: &rustls::Certificate,
-            _intermediates: &[rustls::Certificate],
-            _server_name: &rustls::ServerName,
-            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _end_entity: &CertificateDer<'_>,
+            _intermediates: &[CertificateDer<'_>],
+            _server_name: &ServerName<'_>,
             _ocsp: &[u8],
-            _now: std::time::SystemTime,
-        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-            Ok(rustls::client::ServerCertVerified::assertion())
+            _now: UnixTime,
+        ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+            Ok(rustls::client::danger::ServerCertVerified::assertion())
         }
-    }
-}
 
-#[cfg(feature = "dangerous_configuration")]
-fn apply_dangerous_options(args: &Args, cfg: &mut rustls::ClientConfig) {
-    if args.flag_insecure {
-        cfg.dangerous()
-            .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
-    }
-}
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            verify_tls12_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+        }
 
-#[cfg(not(feature = "dangerous_configuration"))]
-fn apply_dangerous_options(args: &Args, _: &mut rustls::ClientConfig) {
-    if args.flag_insecure {
-        panic!("This build does not support --insecure.");
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            verify_tls13_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            self.0
+                .signature_verification_algorithms
+                .supported_schemes()
+        }
     }
 }
 
@@ -372,47 +395,44 @@ fn apply_dangerous_options(args: &Args, _: &mut rustls::ClientConfig) {
 fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
     let mut root_store = RootCertStore::empty();
 
-    if args.flag_cafile.is_some() {
-        let cafile = args.flag_cafile.as_ref().unwrap();
-
-        let certfile = fs::File::open(cafile).expect("Cannot open CA file");
-        let mut reader = BufReader::new(certfile);
-        root_store.add_parsable_certificates(&rustls_pemfile::certs(&mut reader).unwrap());
+    if let Some(cafile) = args.cafile.as_ref() {
+        root_store.add_parsable_certificates(
+            CertificateDer::pem_file_iter(cafile)
+                .expect("Cannot open CA file")
+                .map(|result| result.unwrap()),
+        );
     } else {
-        root_store.add_server_trust_anchors(
+        root_store.extend(
             webpki_roots::TLS_SERVER_ROOTS
-                .0
                 .iter()
-                .map(|ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                }),
+                .cloned(),
         );
     }
 
-    let suites = if !args.flag_suite.is_empty() {
-        lookup_suites(&args.flag_suite)
+    let suites = if !args.suite.is_empty() {
+        lookup_suites(&args.suite)
     } else {
-        rustls::DEFAULT_CIPHER_SUITES.to_vec()
+        provider::DEFAULT_CIPHER_SUITES.to_vec()
     };
 
-    let versions = if !args.flag_protover.is_empty() {
-        lookup_versions(&args.flag_protover)
+    let versions = if !args.protover.is_empty() {
+        lookup_versions(&args.protover)
     } else {
         rustls::DEFAULT_VERSIONS.to_vec()
     };
 
-    let config = rustls::ClientConfig::builder()
-        .with_cipher_suites(&suites)
-        .with_safe_default_kx_groups()
-        .with_protocol_versions(&versions)
-        .expect("inconsistent cipher-suite/versions selected")
-        .with_root_certificates(root_store);
+    let config = rustls::ClientConfig::builder_with_provider(
+        CryptoProvider {
+            cipher_suites: suites,
+            ..provider::default_provider()
+        }
+        .into(),
+    )
+    .with_protocol_versions(&versions)
+    .expect("inconsistent cipher-suite/versions selected")
+    .with_root_certificates(root_store);
 
-    let mut config = match (&args.flag_auth_key, &args.flag_auth_certs) {
+    let mut config = match (&args.auth_key, &args.auth_certs) {
         (Some(key_file), Some(certs_file)) => {
             let certs = load_certs(certs_file);
             let key = load_private_key(key_file);
@@ -428,24 +448,30 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 
     config.key_log = Arc::new(rustls::KeyLogFile::new());
 
-    if args.flag_no_tickets {
+    if args.no_tickets {
         config.resumption = config
             .resumption
             .tls12_resumption(rustls::client::Tls12Resumption::SessionIdOnly);
     }
 
-    if args.flag_no_sni {
+    if args.no_sni {
         config.enable_sni = false;
     }
 
     config.alpn_protocols = args
-        .flag_proto
+        .proto
         .iter()
         .map(|proto| proto.as_bytes().to_vec())
         .collect();
-    config.max_fragment_size = args.flag_max_frag_size;
+    config.max_fragment_size = args.max_frag_size;
 
-    apply_dangerous_options(args, &mut config);
+    if args.insecure {
+        config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(danger::NoCertificateVerification::new(
+                provider::default_provider(),
+            )));
+    }
 
     Arc::new(config)
 }
@@ -453,38 +479,32 @@ fn make_config(args: &Args) -> Arc<rustls::ClientConfig> {
 /// Parse some arguments, then make a TLS client connection
 /// somewhere.
 fn main() {
-    let version = env!("CARGO_PKG_NAME").to_string() + ", version: " + env!("CARGO_PKG_VERSION");
+    let args = Args::parse();
 
-    let args: Args = Docopt::new(USAGE)
-        .map(|d| d.help(true))
-        .map(|d| d.version(Some(version)))
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
-
-    if args.flag_verbose {
+    if args.verbose {
         env_logger::Builder::new()
             .parse_filters("trace")
             .init();
     }
 
-    let port = args.flag_port.unwrap_or(443);
-    let addr = lookup_ipv4(args.arg_hostname.as_str(), port);
-
     let config = make_config(&args);
 
-    let sock = TcpStream::connect(addr).unwrap();
-    let server_name = args
-        .arg_hostname
-        .as_str()
-        .try_into()
-        .expect("invalid DNS name");
+    let sock_addr = (args.hostname.as_str(), args.port)
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .unwrap();
+    let sock = TcpStream::connect(sock_addr).unwrap();
+    let server_name = ServerName::try_from(args.hostname.as_str())
+        .expect("invalid DNS name")
+        .to_owned();
     let mut tlsclient = TlsClient::new(sock, server_name, config);
 
-    if args.flag_http {
+    if args.http {
         let httpreq = format!(
             "GET / HTTP/1.0\r\nHost: {}\r\nConnection: \
                                close\r\nAccept-Encoding: identity\r\n\r\n",
-            args.arg_hostname
+            args.hostname
         );
         tlsclient
             .write_all(httpreq.as_bytes())
@@ -501,7 +521,14 @@ fn main() {
     tlsclient.register(poll.registry());
 
     loop {
-        poll.poll(&mut events, None).unwrap();
+        match poll.poll(&mut events, None) {
+            Ok(_) => {}
+            // Polling can be interrupted (e.g. by a debugger) - retry if so.
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => {
+                panic!("poll failed: {:?}", e)
+            }
+        }
 
         for ev in events.iter() {
             tlsclient.ready(ev);

@@ -3,23 +3,6 @@
 extern crate libfuzzer_sys;
 extern crate rustls;
 
-use rustls::internal::msgs::deframer;
-use rustls::internal::msgs::message::Message;
-use rustls::internal::record_layer::RecordLayer;
-use std::io;
+use rustls::internal::fuzzing::fuzz_deframer;
 
-fuzz_target!(|data: &[u8]| {
-    let mut dfm = deframer::MessageDeframer::default();
-    if dfm
-        .read(&mut io::Cursor::new(data))
-        .is_err()
-    {
-        return;
-    }
-    dfm.has_pending();
-
-    let mut rl = RecordLayer::new();
-    while let Ok(Some(decrypted)) = dfm.pop(&mut rl) {
-        Message::try_from(decrypted.message).ok();
-    }
-});
+fuzz_target!(|bytes: &[u8]| fuzz_deframer(bytes));
