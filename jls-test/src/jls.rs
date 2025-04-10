@@ -140,12 +140,13 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
                         break;
                     }
                 }
+                assert!(conn.is_jls() == Some(jls));
             }
             log::info!(
                 "Received message from client: {:?}",
                 String::from_utf8(buf[..len].to_vec())
             );
-            assert!(conn.is_jls() == Some(jls));
+
             conn.writer()
                 .write_all(&buf[..len])
                 .unwrap();
@@ -220,7 +221,7 @@ impl TestPki {
 
 #[test]
 fn test_true_jls_server() {
-    env_logger::init();
+    let _ = env_logger::try_init();
     let pki = TestPki::new();
     let client_config = pki.client_config();
     let server_up = thread::spawn(|| server_upstream(pki.server_config(), 4443, 3, true));
@@ -250,6 +251,8 @@ fn test_false_jls_server() {
     let client_jls = thread::spawn(move || {
         client_wrong_passwd(client_config.clone(), 4445);
     });
+
+    let _ = server_up.join();
 
     thread::sleep(time::Duration::from_millis(2000));
 }
