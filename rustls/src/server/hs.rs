@@ -27,7 +27,7 @@ use crate::msgs::handshake::{
 use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
 use crate::server::common::ActiveCertifiedKey;
-use crate::server::{ClientHello, ServerConfig, tls13};
+use crate::server::{ClientHello, ServerConfig, jls, tls13};
 use crate::sync::Arc;
 use crate::{SupportedCipherSuite, suites};
 
@@ -738,6 +738,8 @@ pub(super) fn process_client_hello<'m>(
                 PeerIncompatible::SignatureAlgorithmsExtensionRequired,
             )
         })?;
+
+    jls::handle_client_hello_tls13(cx, client_hello);
 
     Ok((client_hello, sig_schemes.to_owned()))
 }

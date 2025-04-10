@@ -168,13 +168,7 @@ mod client_hello {
             }
 
             //JLS authentication
-            if !jls::handle_client_hello_tls13(
-                &self.config.jls_config,
-                cx,
-                client_hello,
-                chm,
-                &mut self.randoms,
-            ) {
+            if cx.common.jls_authed == Some(false) {
                 return Ok(Box::new(jls::ExpectForward {}));
             }
 
@@ -539,12 +533,15 @@ mod client_hello {
         };
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
-        let fake_random = config.jls_config.inner.build_fake_random(
-            randoms.server[0..16]
-                .try_into()
-                .unwrap(),
-            &buf,
-        );
+        let fake_random = config
+            .jls_config
+            .inner
+            .build_fake_random(
+                randoms.server[0..16]
+                    .try_into()
+                    .unwrap(),
+                &buf,
+            );
 
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,

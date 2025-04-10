@@ -38,8 +38,3 @@ impl JlsServerConfig {
         }
     }
 }
-
-#[derive(Debug)]
-pub(crate) struct JlsForwardConn {
-    pub(crate) upstream_addr: Option<String>,
-}

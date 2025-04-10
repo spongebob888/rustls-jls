@@ -10,7 +10,7 @@ use std::string::String;
 
 use pki_types::{DnsName, UnixTime};
 
-use crate::jls::server::{JlsForwardConn, JlsServerConfig};
+use crate::jls::server::JlsServerConfig;
 
 use super::hs;
 #[cfg(feature = "std")]
@@ -379,7 +379,7 @@ pub struct ServerConfig {
 
     /// JLS server configuration
     pub jls_config: JlsServerConfig,
-    
+
     /// If set to `true`, requires the client to support the extended
     /// master secret extraction method defined in [RFC 7627].
     ///
@@ -1178,8 +1178,11 @@ impl ConnectionCore<ServerConnectionData> {
         common.enable_secret_extraction = config.enable_secret_extraction;
         common.fips = config.fips();
         Ok(Self::new(
-            Box::new(hs::ExpectClientHello::new(config, extra_exts)),
-            ServerConnectionData::default(),
+            Box::new(hs::ExpectClientHello::new(config.clone(), extra_exts)),
+            ServerConnectionData {
+                jls_conn: config.jls_config.clone(),
+                ..Default::default()
+            },
             common,
         ))
     }
@@ -1206,7 +1209,7 @@ pub struct ServerConnectionData {
     pub(super) received_resumption_data: Option<Vec<u8>>,
     pub(super) resumption_data: Vec<u8>,
     pub(super) early_data: EarlyDataState,
-    pub(super) jls_conn: Option<JlsForwardConn>,
+    pub(super) jls_conn: JlsServerConfig,
 }
 
 impl ServerConnectionData {
@@ -1216,7 +1219,7 @@ impl ServerConnectionData {
     }
 
     pub(crate) fn get_jls_upstream_addr(&self) -> Option<String> {
-        self.jls_conn.as_ref()?.upstream_addr.clone()
+        self.jls_conn.upstream_addr.clone()
     }
 }
 

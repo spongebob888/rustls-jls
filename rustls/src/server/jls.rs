@@ -1,32 +1,28 @@
 use crate::log::{debug, error};
 
-use alloc::vec::Vec;
-use alloc::string::ToString;
 use alloc::boxed::Box;
+use alloc::string::ToString;
+use alloc::vec::Vec;
 
 use crate::{
-    common_state::{Context, State}, conn::ConnectionRandoms, jls::server::JlsForwardConn, msgs::{
+    Error, HandshakeType,
+    common_state::{Context, State},
+    msgs::{
         codec::Codec,
         handshake::{
             ClientHelloPayload, ConvertServerNameList, HandshakeMessagePayload, HandshakePayload,
             Random,
         },
         message::Message,
-    }, Error, HandshakeType, JlsServerConfig
+    },
 };
 
-use super::{
-    hs::ServerContext,
-    ServerConnectionData,
-};
+use super::{ServerConnectionData, hs::ServerContext};
 
 /// Return true if jls authentication passed
 pub(super) fn handle_client_hello_tls13(
-    config: &JlsServerConfig,
     cx: &mut ServerContext<'_>,
     client_hello: &ClientHelloPayload,
-    _: &Message<'_>,
-    randoms: &mut ConnectionRandoms,
 ) -> bool {
     let mut client_hello_clone = ClientHelloPayload {
         client_version: client_hello.client_version.clone(),
@@ -46,14 +42,21 @@ pub(super) fn handle_client_hello_tls13(
     let mut buf = Vec::<u8>::new();
     ch_hs.encode(&mut buf);
 
-    let server_name = client_hello.sni_extension()
+    let server_name = client_hello
+        .sni_extension()
         .map_or(None, |x| x.single_hostname());
 
     let server_name = server_name.map(|x| x.as_ref().to_string());
+    let config = &cx.data.jls_conn;
     let valid_name = config.check_server_name(server_name.as_deref());
 
+    let random = &client_hello.random.0;
 
-    if config.inner.check_fake_random(&randoms.client, &buf) && valid_name {
+    if config
+        .inner
+        .check_fake_random(random, &buf)
+        && valid_name
+    {
         debug!("JLS client authenticated");
         cx.common.jls_authed = Some(true);
         return true;
@@ -66,21 +69,12 @@ pub(super) fn handle_client_hello_tls13(
 
         cx.common.jls_authed = Some(false);
         let upstream_addr = config.upstream_addr.clone();
-        if let Some(addr) = upstream_addr {
-            cx.data.jls_conn = Some(JlsForwardConn {
-                upstream_addr: Some(addr),
-            });
-        } else {
+        if upstream_addr.is_none() {
             error!("[jls] No upstream addr provided");
         }
-        // End handshaking, start forward traffic
-        cx.common.may_send_application_data = true;
-        cx.common.may_receive_application_data = true;
-
         return false;
     }
 }
-
 
 // JLS Forward
 pub(super) struct ExpectForward {}
@@ -93,10 +87,11 @@ impl State<ServerConnectionData> for ExpectForward {
         message: Message<'m>,
     ) -> Result<Box<dyn State<ServerConnectionData> + 'm>, Error>
     where
-        Self: 'm {
+        Self: 'm,
+    {
         Err(crate::check::inappropriate_message(&message.payload, &[]))
     }
-    
+
     fn into_owned(self: Box<Self>) -> Box<dyn State<ServerConnectionData> + 'static> {
         self
     }
