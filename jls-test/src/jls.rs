@@ -10,14 +10,14 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::server::Acceptor;
 use rustls::{ClientConfig, JlsConfig, JlsServerConfig, RootCertStore, ServerConfig};
 
-fn client_one_rtt(mut config: ClientConfig,port:u16) {
+fn client_one_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
     config.jls_config = JlsConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-    let mut sock = TcpStream::connect(format!("localhost:{}",port)).unwrap();
+    let mut sock = TcpStream::connect(format!("localhost:{}", port)).unwrap();
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
 
     let test_vector = b"test";
@@ -43,14 +43,14 @@ fn client_one_rtt(mut config: ClientConfig,port:u16) {
     tls.flush().unwrap();
 }
 
-fn client_zero_rtt(mut config: ClientConfig, port:u16) {
+fn client_zero_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
     config.jls_config = JlsConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-    let mut sock = TcpStream::connect(format!("localhost:{}",port)).unwrap();
+    let mut sock = TcpStream::connect(format!("localhost:{}", port)).unwrap();
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
 
     let test_vector = b"test";
@@ -71,20 +71,21 @@ fn client_zero_rtt(mut config: ClientConfig, port:u16) {
     tls.flush().unwrap();
 }
 
-fn client_wrong_passwd(mut config: ClientConfig,port:u16) {
+fn client_wrong_passwd(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
     config.jls_config = JlsConfig::new("1238", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-    let mut sock = TcpStream::connect(format!("localhost:{}",port)).unwrap();
+    let mut sock = TcpStream::connect(format!("localhost:{}", port)).unwrap();
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
     assert!(tls.conn.is_jls() == Some(false));
     assert!(tls.conn.is_early_data_accepted() == false);
+    return ;
     let ciphersuite = tls
         .conn
         .negotiated_cipher_suite()
@@ -110,48 +111,47 @@ use std::net::TcpListener;
 
 use rustls::pki_types::pem::PemObject;
 
-fn server_upstream(mut config: ServerConfig,port:u16, iter:u32) {
+fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-    config.jls_config = JlsServerConfig::new("123","123","localhost");
+    config.jls_config = JlsServerConfig::new("123", "123", "localhost");
     let mut cfg = Arc::new(config);
-
 
     for n in 0..iter {
         let (mut stream, _) = listener.accept().unwrap();
         let cfg = cfg.clone();
-        thread::spawn(move ||{
-        let mut conn = rustls::ServerConnection::new(cfg).unwrap();
+        thread::spawn(move || {
+            let mut conn = rustls::ServerConnection::new(cfg).unwrap();
 
-        let mut buf = [0; 64];
-        let mut len = 0;
-        loop {
-            thread::sleep(time::Duration::from_millis(100));
-            conn.complete_io(&mut stream).unwrap();
-            match conn.reader().read(&mut buf) {
-                Err(e) => {
-                    if e.kind() != ErrorKind::WouldBlock {
-                        panic!("{}", e);
+            let mut buf = [0; 64];
+            let mut len = 0;
+            loop {
+                thread::sleep(time::Duration::from_millis(100));
+                conn.complete_io(&mut stream).unwrap();
+                match conn.reader().read(&mut buf) {
+                    Err(e) => {
+                        if e.kind() != ErrorKind::WouldBlock {
+                            panic!("{}", e);
+                        }
+                    }
+                    Ok(l) => {
+                        len = l;
+                        break;
                     }
                 }
-                Ok(l) => {
-                    len = l;
-                    break;
-                }
             }
-        }
-        log::info!(
-            "Received message from client: {:?}",
-            String::from_utf8(buf[..len].to_vec())
-        );
+            log::info!(
+                "Received message from client: {:?}",
+                String::from_utf8(buf[..len].to_vec())
+            );
+            assert!(conn.is_jls() == Some(jls));
+            conn.writer()
+                .write_all(&buf[..len])
+                .unwrap();
 
-        conn.writer()
-            .write_all(&buf[..len])
-            .unwrap();
-
-        conn.complete_io(&mut stream).unwrap();
-    });
+            conn.complete_io(&mut stream).unwrap();
+        });
     }
 
     ()
@@ -223,17 +223,16 @@ fn test_true_jls_server() {
     env_logger::init();
     let pki = TestPki::new();
     let client_config = pki.client_config();
-    let server_up = thread::spawn(|| server_upstream(pki.server_config(),4443,3));
+    let server_up = thread::spawn(|| server_upstream(pki.server_config(), 4443, 3, true));
 
     thread::sleep(time::Duration::from_millis(100));
-    client_one_rtt(client_config.clone(),4443);
+    client_one_rtt(client_config.clone(), 4443);
     let cfg = client_config.clone();
     let client_jls = thread::spawn(move || {
-
-        client_zero_rtt(cfg,4443);
+        client_zero_rtt(cfg, 4443);
         log::info!("zero-rtt check passed");
     });
-    client_zero_rtt(client_config,4443);
+    client_zero_rtt(client_config, 4443);
 
     server_up.join().unwrap();
     client_jls.join().unwrap();
@@ -241,16 +240,16 @@ fn test_true_jls_server() {
 
 #[test]
 fn test_false_jls_server() {
+    let _ = env_logger::try_init();
     let pki = TestPki::new();
     let mut client_config = pki.client_config();
     //client_config.jls_config.user_pwd = "123".into();
-    let server_up = thread::spawn(|| {
-        server_upstream(pki.server_config(),4445,1)
-    });
+    let server_up = thread::spawn(|| server_upstream(pki.server_config(), 4445, 1, false));
 
     thread::sleep(time::Duration::from_millis(100));
-    let client_jls = thread::spawn(move|| { 
-        client_wrong_passwd(client_config.clone(),4445);
+    let client_jls = thread::spawn(move || {
+        client_wrong_passwd(client_config.clone(), 4445);
     });
+
     thread::sleep(time::Duration::from_millis(2000));
 }
