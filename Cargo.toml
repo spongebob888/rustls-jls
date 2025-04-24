@@ -13,7 +13,7 @@ members = [
   # example of custom provider
   "provider-example",
   # the main library and tests
-  "rustls",
+  "rustls-jls",
   # benchmarking tool
   "rustls-bench",
   # experimental post-quantum algorithm support
@@ -35,7 +35,7 @@ exclude = [
 default-members = [
   # ---
   "examples",
-  "rustls",
+  "rustls-jls",
 ]
 resolver = "2"
 

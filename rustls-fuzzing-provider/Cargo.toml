@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-rustls = { path = "../rustls", default-features = false, features = ["logging", "std", "tls12"] }
+rustls = { package = "rustls-jls", path = "../rustls-jls", default-features = false, features = ["logging", "std", "tls12"] }
 
 [dev-dependencies]
 env_logger = { workspace = true }

@@ -18,7 +18,7 @@ log.workspace = true
 logging = "0.1.0"
 rayon = { workspace = true }
 rcgen.workspace = true
-rustls = { path = "../rustls", features = ["aws_lc_rs"] }
+rustls = { package = "rustls-jls", path = "../rustls-jls", features = ["aws_lc_rs"] }
 rustls_raw = { package = "rustls",git = "https://github.com/rustls/rustls",tag="v/0.23.25", features = ["aws_lc_rs"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
