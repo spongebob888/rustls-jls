@@ -115,7 +115,7 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-    config.jls_config = JlsServerConfig::new("123", "123", "localhost");
+    config.jls_config = JlsServerConfig::new("123".into(), "123".into(), Some("localhost:443".into()),None);
     let mut cfg = Arc::new(config);
 
     for n in 0..iter {
