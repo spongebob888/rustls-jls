@@ -115,7 +115,8 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-    config.jls_config = JlsServerConfig::new("123".into(), "123".into(), Some("localhost:443".into()),None);
+    config.jls_config = JlsServerConfig::new("123".into(), "1".into(), Some("localhost:443".into()),None)
+    .add_user("123".into(), "123".into());
     let mut cfg = Arc::new(config);
 
     for n in 0..iter {
@@ -141,6 +142,7 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
                     }
                 }
                 assert!(conn.is_jls() == Some(jls));
+                assert!(conn.jls_chosen_config().unwrap().user_iv == "123");
             }
             log::info!(
                 "Received message from client: {:?}",

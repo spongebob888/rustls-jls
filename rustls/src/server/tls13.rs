@@ -533,9 +533,7 @@ mod client_hello {
         };
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
-        let fake_random = config
-            .jls_config
-            .inner
+        let fake_random = cx.common.jls_chosen_config.as_ref().unwrap()
             .build_fake_random(
                 randoms.server[0..16]
                     .try_into()

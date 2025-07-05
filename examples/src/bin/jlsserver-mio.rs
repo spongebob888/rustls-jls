@@ -632,9 +632,10 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
 
     config.alpn_protocols = args.proto.clone();
     let jls_cfg = JlsServerConfig::new(
-        "3070111071563328618171495819203123318",
-        "3070111071563328618171495819203123318",
-        "https://codepen.io:443");
+        "3070111071563328618171495819203123318".into(),
+        "3070111071563328618171495819203123318".into(),
+        Some("codepen.io:443".into()),
+        None);
     config.jls_config = jls_cfg;
 
     Arc::new(config)

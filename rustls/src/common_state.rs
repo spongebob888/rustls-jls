@@ -24,7 +24,7 @@ use crate::suites::{PartiallyExtractedSecrets, SupportedCipherSuite};
 use crate::tls12::ConnectionSecrets;
 use crate::unbuffered::{EncryptError, InsufficientSizeError};
 use crate::vecbuf::ChunkVecBuffer;
-use crate::{quic, record_layer};
+use crate::{quic, record_layer, JlsConfig};
 
 /// Connection state common to both client and server connections.
 pub struct CommonState {
@@ -54,6 +54,8 @@ pub struct CommonState {
 
     /// None: not auth yet; false: auth failed;true: auth succeeded
     pub jls_authed: Option<bool>, 
+    /// The jls config authenticated.
+    pub jls_chosen_config: Option<JlsConfig>,
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
     pub(crate) protocol: Protocol,
     pub(crate) quic: quic::Quic,
@@ -88,6 +90,7 @@ impl CommonState {
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
             queued_key_update_message: None,
             jls_authed: None,
+            jls_chosen_config: None,
 
             protocol: Protocol::Tcp,
             quic: quic::Quic::default(),

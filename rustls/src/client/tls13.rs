@@ -97,6 +97,7 @@ pub(super) fn handle_server_hello(
     if is_jls {
         debug!("JLS authencation success");
         cx.common.jls_authed = Some(true);
+        cx.common.jls_chosen_config = Some(config.jls_config.clone());
     }
     else {
         debug!("JLS authencation failed");

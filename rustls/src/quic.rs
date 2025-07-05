@@ -37,6 +37,7 @@ mod connection {
     use crate::server::{ServerConfig, ServerConnectionData};
     use crate::sync::Arc;
     use crate::vecbuf::ChunkVecBuffer;
+    use crate::JlsConfig;
 
     /// A QUIC client or server connection.
     #[derive(Debug)]
@@ -304,6 +305,10 @@ mod connection {
                 .core
                 .data
                 .get_jls_upstream_addr()
+        }
+        /// Get chosen jls config
+        pub fn jls_chosen_config(&self) -> Option<&JlsConfig> {
+            self.inner.core.common_state.jls_chosen_config.as_ref()
         }
     }
 

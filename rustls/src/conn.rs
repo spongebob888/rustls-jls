@@ -17,6 +17,8 @@ use crate::msgs::message::{InboundPlainMessage, Message, MessagePayload};
 use crate::record_layer::Decrypted;
 use crate::suites::{ExtractedSecrets, PartiallyExtractedSecrets};
 use crate::vecbuf::ChunkVecBuffer;
+#[cfg(feature = "std")]
+use crate::JlsConfig;
 
 pub(crate) mod unbuffered;
 
@@ -763,6 +765,11 @@ impl<Data> ConnectionCommon<Data> {
     /// Return Some(true) is a jls connection established, return None if not handshaked
     pub fn is_jls(&self) -> Option<bool> {
         self.core.common_state.jls_authed
+    }
+    /// Return chosen jls config if jls authenticated
+    /// None for failed or on going handshake
+    pub fn jls_chosen_config(&self) -> Option<&JlsConfig> {
+        self.core.common_state.jls_chosen_config.as_ref()
     }
 }
 
