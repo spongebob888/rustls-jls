@@ -20,7 +20,7 @@ pub struct JlsServerConfig {
     pub upstream_sni: Option<String>,
     /// Limit the rate of JLS forwarding
     /// This is not done in rustls but in quinn or tokio-rustls
-    pub rate_limit: Option<u32>,
+    pub rate_limit: u64,
 }
 
 impl JlsServerConfig {
@@ -44,7 +44,7 @@ impl JlsServerConfig {
             inner: vec![JlsConfig::new(&pwd, &iv)],
             upstream_addr: upstream_addr,
             upstream_sni: upstream_sni,
-            rate_limit: None,
+            rate_limit: u64::MAX,
         }
     }
 
@@ -76,6 +76,11 @@ impl JlsServerConfig {
     /// setting server name authentication check
     pub fn with_server_name(mut self, server_name: String) -> Self {
         self.upstream_sni = Some(server_name);
+        self
+    }
+    /// setting rate limit for JLS forwarding
+    pub fn with_rate_limit(mut self, rate_limit: u64) -> Self {
+        self.rate_limit = rate_limit;
         self
     }
 }
