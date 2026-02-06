@@ -31,6 +31,7 @@ mod connection {
     use crate::conn::{ConnectionCore, SideData};
     use crate::enums::{AlertDescription, ContentType, ProtocolVersion};
     use crate::error::Error;
+    use crate::jls::JlsUser;
     use crate::msgs::deframer::buffers::{DeframerVecBuffer, Locator};
     use crate::msgs::handshake::{ClientExtension, ServerExtension};
     use crate::msgs::message::InboundPlainMessage;
@@ -306,9 +307,9 @@ mod connection {
                 .data
                 .get_jls_upstream_addr()
         }
-        /// Get chosen jls config
-        pub fn jls_chosen_config(&self) -> Option<&JlsConfig> {
-            self.inner.core.common_state.jls_chosen_config.as_ref()
+        /// Get chosen jls user
+        pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
+            self.inner.core.common_state.jls_chosen_user.as_ref()
         }
     }
 

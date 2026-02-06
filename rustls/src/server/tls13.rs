@@ -533,13 +533,13 @@ mod client_hello {
         };
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
-        let fake_random = cx.common.jls_chosen_config.as_ref().unwrap()
-            .build_fake_random(
+        let fake_random = cx.common.jls_chosen_user.as_ref()
+            .map(|user| user.build_fake_random(
                 randoms.server[0..16]
                     .try_into()
                     .unwrap(),
                 &buf,
-            );
+            )).unwrap_or(randoms.server);
 
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,

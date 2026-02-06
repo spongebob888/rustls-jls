@@ -7,37 +7,36 @@ use std::sync::Arc;
 use std::thread::{self, sleep};
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+use rustls::{ClientConfig, JlsConfig, JlsServerConfig, RootCertStore};
 use rustls_raw::client;
 use rustls_raw::server::{Acceptor, ServerConfig};
-use rustls::{ClientConfig, RootCertStore };
 
-fn client_unknown_ca_rtt(mut config: ClientConfig,port:u16) {
+fn client_unknown_ca_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
+    config.jls_config = JlsConfig::new("123", "123");
     //config.jls_config = JlsConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-    let mut sock = TcpStream::connect(format!("localhost:{}",port)).unwrap();
+    let mut sock = TcpStream::connect(format!("localhost:{}", port)).unwrap();
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-
 
     let test_vector = b"test";
     let ret = tls.write_all(test_vector);
     assert!(tls.conn.is_jls() == Some(false));
     assert!(ret.is_err());
-    return ;
-
+    return;
 }
 
-fn client_true_ca_rtt(mut config: ClientConfig, port:u16) {
+fn client_true_ca_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
-    //config.jls_config = JlsConfig::new("123", "123");
+    config.jls_config = JlsConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-    let mut sock = TcpStream::connect(format!("localhost:{}",port)).unwrap();
+    let mut sock = TcpStream::connect(format!("localhost:{}", port)).unwrap();
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
 
     let test_vector = b"test";
@@ -69,7 +68,7 @@ use std::net::TcpListener;
 
 use rustls::pki_types::pem::PemObject;
 
-fn server_upstream(mut config: ServerConfig,port:u16) {
+fn server_upstream(mut config: ServerConfig, port: u16) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
@@ -78,24 +77,23 @@ fn server_upstream(mut config: ServerConfig,port:u16) {
     for n in 1..2 {
         let (mut stream, _) = listener.accept().unwrap();
         let cfg = cfg.clone();
-        thread::spawn(move ||{
-        let mut conn = rustls_raw::ServerConnection::new(cfg).unwrap();
+        thread::spawn(move || {
+            let mut conn = rustls_raw::ServerConnection::new(cfg).unwrap();
 
-        let mut buf = [0; 64];
-        let mut len = 0;
-        loop {
-            thread::sleep(time::Duration::from_millis(100));
-            assert!(conn.complete_io(&mut stream).is_err());
-            return ();
-        }
-    });
+            let mut buf = [0; 64];
+            let mut len = 0;
+            loop {
+                thread::sleep(time::Duration::from_millis(100));
+                assert!(conn.complete_io(&mut stream).is_err());
+                return ();
+            }
+        });
     }
 
     ()
 }
 
-
-fn server_upstream_true_ca(mut config: ServerConfig,port:u16) {
+fn server_upstream_true_ca(mut config: ServerConfig, port: u16) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
@@ -104,42 +102,41 @@ fn server_upstream_true_ca(mut config: ServerConfig,port:u16) {
     for n in 1..2 {
         let (mut stream, _) = listener.accept().unwrap();
         let cfg = cfg.clone();
-        thread::spawn(move ||{
-        let mut conn = rustls_raw::ServerConnection::new(cfg).unwrap();
+        thread::spawn(move || {
+            let mut conn = rustls_raw::ServerConnection::new(cfg).unwrap();
 
-        let mut buf = [0; 64];
-        let mut len = 0;
-        loop {
-            thread::sleep(time::Duration::from_millis(100));
-            conn.complete_io(&mut stream).unwrap();
-            match conn.reader().read(&mut buf) {
-                Err(e) => {
-                    if e.kind() != ErrorKind::WouldBlock {
-                        panic!("{}", e);
+            let mut buf = [0; 64];
+            let mut len = 0;
+            loop {
+                thread::sleep(time::Duration::from_millis(100));
+                conn.complete_io(&mut stream).unwrap();
+                match conn.reader().read(&mut buf) {
+                    Err(e) => {
+                        if e.kind() != ErrorKind::WouldBlock {
+                            panic!("{}", e);
+                        }
+                    }
+                    Ok(l) => {
+                        len = l;
+                        break;
                     }
                 }
-                Ok(l) => {
-                    len = l;
-                    break;
-                }
             }
-        }
-        log::info!(
-            "Received message from client: {:?}",
-            String::from_utf8(buf[..len].to_vec())
-        );
+            log::info!(
+                "Received message from client: {:?}",
+                String::from_utf8(buf[..len].to_vec())
+            );
 
-        conn.writer()
-            .write_all(&buf[..len])
-            .unwrap();
+            conn.writer()
+                .write_all(&buf[..len])
+                .unwrap();
 
-        conn.complete_io(&mut stream).unwrap();
-    });
+            conn.complete_io(&mut stream).unwrap();
+        });
     }
 
     ()
 }
-
 
 struct TestPki {
     server_cert_der: CertificateDer<'static>,
@@ -207,29 +204,22 @@ fn test_unknow_ca_tls_server() {
     let pki = TestPki::new();
     let cfg_ca = pki.client_config();
     let client_config = ClientConfig::builder()
-    .with_root_certificates(RootCertStore::empty())
-    .with_no_client_auth();
-    let server_up = thread::spawn(|| server_upstream(pki.server_config(),4444));
-
+        .with_root_certificates(RootCertStore::empty())
+        .with_no_client_auth();
+    let server_up = thread::spawn(|| server_upstream(pki.server_config(), 4444));
 
     thread::sleep(time::Duration::from_millis(100));
-    client_unknown_ca_rtt(client_config.clone(),4444);
+    client_unknown_ca_rtt(client_config.clone(), 4444);
     server_up.join().unwrap();
-
 }
 
 #[test]
 fn test_known_ca_tls_server() {
     let pki = TestPki::new();
     let cfg_ca = pki.client_config();
-    let server_up = thread::spawn(|| server_upstream_true_ca(pki.server_config(),4447));
-
+    let server_up = thread::spawn(|| server_upstream_true_ca(pki.server_config(), 4447));
 
     thread::sleep(time::Duration::from_millis(100));
-    client_true_ca_rtt(cfg_ca.clone(),4447);
+    client_true_ca_rtt(cfg_ca.clone(), 4447);
     server_up.join().unwrap();
-
 }
-
-
-

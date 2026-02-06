@@ -24,6 +24,11 @@ pub(super) fn handle_client_hello_tls13(
     cx: &mut ServerContext<'_>,
     client_hello: &ClientHelloPayload,
 ) -> bool {
+    let config = &cx.data.jls_conn;
+    if !config.enable {
+        debug!("JLS disabled");
+        return false;
+    }
     let mut client_hello_clone = ClientHelloPayload {
         client_version: client_hello.client_version.clone(),
         random: Random([0u8; 32]),
@@ -47,19 +52,18 @@ pub(super) fn handle_client_hello_tls13(
         .map_or(None, |x| x.single_hostname());
 
     let server_name = server_name.map(|x| x.as_ref().to_string());
-    let config = &cx.data.jls_conn;
     let valid_name = config.check_server_name(server_name.as_deref());
 
     let random = &client_hello.random.0;
 
     let jls_chosen =  config
-        .inner.iter().find(|x|
+        .users.iter().find(|x|
         x.check_fake_random(random, &buf));
     if jls_chosen.is_some() && valid_name
     {
         debug!("JLS client authenticated");
         cx.common.jls_authed = Some(true);
-        cx.common.jls_chosen_config = jls_chosen.cloned();
+        cx.common.jls_chosen_user = jls_chosen.cloned();
         return true;
     } else {
         if valid_name {

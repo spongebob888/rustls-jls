@@ -512,7 +512,7 @@ fn emit_client_hello_for_retry(
     }
     let mut buf = Vec::<u8>::new();
     chp.encode(&mut buf);
-    let fake_random = input.config.jls_config.
+    let fake_random = input.config.jls_config.user.
     build_fake_random(input.random.0[0..16].try_into().unwrap(),
     &buf);
     input.random.0 = fake_random;

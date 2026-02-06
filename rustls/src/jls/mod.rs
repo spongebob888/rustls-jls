@@ -25,25 +25,24 @@ pub(crate) mod server;
 #[derive(Clone,Debug)]
 /// JLS Configuration
 pub struct JlsConfig {
+    /// enable JLS
+    pub enable: bool,
+    /// user password of a JLS peer
+    pub user: JlsUser
+}
+
+#[derive(Clone,Debug)]
+pub struct  JlsUser {
     /// user password of a JLS peer
     pub user_pwd: String,
     /// user iv for a JLS peer
     pub user_iv: String,
 }
 
-impl Default for JlsConfig {
-    fn default() -> JlsConfig {
-        JlsConfig {
-            user_pwd: "3070111071563328618171495819203123318".into(),
-            user_iv: "3070111071563328618171495819203123318".into(),
-        }
-    }
-}
-
-impl JlsConfig {
-    /// Create a new JlsConfig
-    pub fn new(user_pwd: &str, user_iv: &str) -> JlsConfig {
-        JlsConfig {
+impl JlsUser {
+    /// Create a new JlsUser
+    pub fn new(user_pwd: &str, user_iv: &str) -> JlsUser {
+        JlsUser {
             user_pwd: String::from(user_pwd),
             user_iv: String::from(user_iv),
         }
@@ -93,8 +92,36 @@ impl JlsConfig {
             .decrypt_in_place(iv.as_ref().into(), b"", &mut buffer)
             .is_ok();
         is_valid
+    }    
+}
+
+impl Default for JlsUser {
+    fn default() -> JlsUser {
+        JlsUser {
+            user_pwd: "3070111071563328618171495819203123318".into(),
+            user_iv: "3070111071563328618171495819203123318".into(),
+        }
     }
 }
+
+impl JlsConfig {
+    /// Create a new JlsConfig
+    pub fn new(user_pwd: &str, user_iv: &str) -> JlsConfig {
+        JlsConfig {
+            enable: true,
+            user: JlsUser::new(user_pwd, user_iv),
+        }
+    }
+}
+impl Default for JlsConfig {
+    fn default() -> JlsConfig {
+        JlsConfig {
+            enable: false,
+            user: JlsUser::default(),
+        }
+    }
+}
+
 
 // fill zero in the psk binders field.
 pub(crate) fn set_zero_psk_binders(chp: &mut ClientHelloPayload) {

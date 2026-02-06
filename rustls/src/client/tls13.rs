@@ -92,14 +92,15 @@ pub(super) fn handle_server_hello(
     };
     let mut buf = Vec::<u8>::new();
     sh_hs.encode(&mut buf);
-    let is_jls = config.jls_config.check_fake_random(&randoms.server, 
+    let is_jls = config.jls_config.user.check_fake_random(&randoms.server, 
         &buf);
-    if is_jls {
+    
+    if is_jls && config.jls_config.enable{
         debug!("JLS authencation success");
         cx.common.jls_authed = Some(true);
-        cx.common.jls_chosen_config = Some(config.jls_config.clone());
+        cx.common.jls_chosen_user = Some(config.jls_config.user.clone());
     }
-    else {
+    else if config.jls_config.enable {
         debug!("JLS authencation failed");
         cx.common.jls_authed = Some(false);
     }
@@ -1172,9 +1173,9 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
             .ok_or(Error::NoCertificatesPresented)?;
 
         let now = self.config.current_time()?;
-        let is_jls = cx.common.jls_authed;
+        let is_jls = cx.common.jls_authed == Some(true) && self.config.jls_config.enable;
         let cert_verified;
-        if is_jls != Some(true) {
+        if !is_jls {
             cert_verified = self
             .config
             .verifier
@@ -1198,7 +1199,7 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
         let handshake_hash = self.transcript.current_hash();
 
         let sig_verified;
-        if is_jls != Some(true) {
+        if !is_jls {
             sig_verified = self
             .config
             .verifier

@@ -85,7 +85,7 @@ fn client_wrong_passwd(mut config: ClientConfig, port: u16) {
     tls.write_all(test_vector).unwrap();
     assert!(tls.conn.is_jls() == Some(false));
     assert!(tls.conn.is_early_data_accepted() == false);
-    return ;
+    return;
     let ciphersuite = tls
         .conn
         .negotiated_cipher_suite()
@@ -115,8 +115,9 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     //config.jls_config = JlsServerConfig::new("123", "123", "localhost::5443");
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
-    config.jls_config = JlsServerConfig::new("123".into(), "1".into(), Some("localhost:443".into()),None)
-    .add_user("123".into(), "123".into());
+    config.jls_config =
+        JlsServerConfig::new("123".into(), "1".into(), Some("localhost:443".into()), None)
+            .add_user("123".into(), "123".into());
     let mut cfg = Arc::new(config);
 
     for n in 0..iter {
@@ -142,7 +143,7 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
                     }
                 }
                 assert!(conn.is_jls() == Some(jls));
-                assert!(conn.jls_chosen_config().unwrap().user_iv == "123");
+                assert!(conn.jls_chosen_user().unwrap().user_iv == "123");
             }
             log::info!(
                 "Received message from client: {:?}",

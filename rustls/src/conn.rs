@@ -8,6 +8,8 @@ use std::io;
 use crate::common_state::{CommonState, Context, DEFAULT_BUFFER_LIMIT, IoState, State};
 use crate::enums::{AlertDescription, ContentType, ProtocolVersion};
 use crate::error::{Error, PeerMisbehaved};
+#[cfg(feature = "std")]
+use crate::jls::JlsUser;
 use crate::log::trace;
 use crate::msgs::deframer::DeframerIter;
 use crate::msgs::deframer::buffers::{BufferProgress, DeframerVecBuffer, Delocator, Locator};
@@ -766,10 +768,10 @@ impl<Data> ConnectionCommon<Data> {
     pub fn is_jls(&self) -> Option<bool> {
         self.core.common_state.jls_authed
     }
-    /// Return chosen jls config if jls authenticated
+    /// Return chosen jls user if jls authenticated
     /// None for failed or on going handshake
-    pub fn jls_chosen_config(&self) -> Option<&JlsConfig> {
-        self.core.common_state.jls_chosen_config.as_ref()
+    pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
+        self.core.common_state.jls_chosen_user.as_ref()
     }
 }
 
@@ -868,6 +870,7 @@ impl<Data> ConnectionCore<Data> {
         sendable_plaintext: &mut ChunkVecBuffer,
     ) -> Result<IoState, Error> {
         // Tcp Forward
+        // If jls is enabled and authentication is failed, we should not process any TLS message,
         if self.common_state.jls_authed == Some(false)
             && self.common_state.side == crate::Side::Server
         {

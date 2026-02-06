@@ -3,7 +3,7 @@ use std::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::vec;
 
-use crate::jls::server;
+use crate::jls::{JlsUser, server};
 use crate::JlsConfig;
 
 use crate::log::trace;
@@ -11,8 +11,10 @@ use crate::log::trace;
 /// Jls Server Configuration
 #[derive(Clone, Debug, Default)]
 pub struct JlsServerConfig {
+    /// enable JLS or a fall back to normal TLS
+    pub enable: bool,
     /// Jls password and iv
-    pub inner: Vec<JlsConfig>,
+    pub users: Vec<JlsUser>,
     /// upstream address, for example, example.com:443
     /// If empty, forwarding will be disabled
     pub upstream_addr: Option<String>,
@@ -41,7 +43,8 @@ impl JlsServerConfig {
             }
         }
         JlsServerConfig {
-            inner: vec![JlsConfig::new(&pwd, &iv)],
+            enable: true,
+            users: vec![JlsUser::new(&pwd, &iv)],
             upstream_addr: upstream_addr,
             upstream_sni: upstream_sni,
             rate_limit: u64::MAX,
@@ -61,7 +64,7 @@ impl JlsServerConfig {
     }
     /// Adding JLS config for a new user
     pub fn add_user(mut self, pwd: String, iv: String) -> Self {
-        self.inner.push(JlsConfig::new(&pwd, &iv));
+        self.users.push(JlsUser::new(&pwd, &iv));
         self
     }
     /// setting upstream address and get default server name if viable
