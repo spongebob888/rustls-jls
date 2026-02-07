@@ -115,6 +115,16 @@ impl JlsClientConfig {
             user: JlsUser::new(user_pwd, user_iv),
         }
     }
+    /// enable JLS
+    pub fn enable(mut self, enable: bool) -> Self {
+        self.enable = enable;
+        self
+    }
+    /// Set JLS user
+    pub fn set_user(mut self, user_pwd: String, user_iv: String) -> Self {
+        self.user = JlsUser::new(&user_pwd, &user_iv);
+        self
+    }
 }
 impl Default for JlsClientConfig {
     fn default() -> JlsClientConfig {

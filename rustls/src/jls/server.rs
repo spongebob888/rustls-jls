@@ -94,4 +94,9 @@ impl JlsServerConfig {
         self.rate_limit = rate_limit;
         self
     }
+    /// Enable JLS
+    pub fn enable(mut self, enable: bool) -> Self {
+        self.enable = enable;
+        self
+    }
 }
