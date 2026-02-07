@@ -1,4 +1,4 @@
-use crate::log::{debug, error};
+use crate::{jls::{JlsState,JlsServerConfig}, log::{debug, error}};
 
 use alloc::boxed::Box;
 use alloc::string::ToString;
@@ -62,7 +62,7 @@ pub(super) fn handle_client_hello_tls13(
     if jls_chosen.is_some() && valid_name
     {
         debug!("JLS client authenticated");
-        cx.common.jls_authed = Some(true);
+        cx.common.jls_authed = JlsState::AuthSuccess;
         cx.common.jls_chosen_user = jls_chosen.cloned();
         return true;
     } else {
@@ -72,7 +72,7 @@ pub(super) fn handle_client_hello_tls13(
             debug!("JLS client authentication failed: wrong server name");
         }
 
-        cx.common.jls_authed = Some(false);
+        cx.common.jls_authed = JlsState::AuthFailed;
         let upstream_addr = config.upstream_addr.clone();
         if upstream_addr.is_none() {
             error!("[jls] No upstream addr provided");

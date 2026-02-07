@@ -28,7 +28,7 @@ use std::{fs, net};
 use clap::{Parser, Subcommand};
 use log::{debug, error};
 use mio::net::{TcpListener, TcpStream};
-use rustls::{JlsServerConfig, RootCertStore};
+use rustls::{jls::JlsServerConfig, RootCertStore};
 use rustls::crypto::{CryptoProvider, aws_lc_rs as provider};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer};
@@ -636,7 +636,7 @@ fn make_config(args: &Args) -> Arc<rustls::ServerConfig> {
         "3070111071563328618171495819203123318".into(),
         Some("codepen.io:443".into()),
         None);
-    config.jls_config = jls_cfg;
+    config.jls_config = jls_cfg.into();
 
     Arc::new(config)
 }

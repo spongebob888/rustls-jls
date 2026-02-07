@@ -22,15 +22,19 @@ use aes_gcm::{
 
 pub(crate) mod server;
 
+pub use server::JlsServerConfig;
+
 #[derive(Clone,Debug)]
 /// JLS Configuration
-pub struct JlsConfig {
+pub struct JlsClientConfig {
     /// enable JLS
     pub enable: bool,
     /// user password of a JLS peer
     pub user: JlsUser
 }
 
+/// JLS User information
+/// user_iv is generally used as username
 #[derive(Clone,Debug)]
 pub struct  JlsUser {
     /// user password of a JLS peer
@@ -104,18 +108,18 @@ impl Default for JlsUser {
     }
 }
 
-impl JlsConfig {
+impl JlsClientConfig {
     /// Create a new JlsConfig
-    pub fn new(user_pwd: &str, user_iv: &str) -> JlsConfig {
-        JlsConfig {
+    pub fn new(user_pwd: &str, user_iv: &str) -> JlsClientConfig {
+        JlsClientConfig {
             enable: true,
             user: JlsUser::new(user_pwd, user_iv),
         }
     }
 }
-impl Default for JlsConfig {
-    fn default() -> JlsConfig {
-        JlsConfig {
+impl Default for JlsClientConfig {
+    fn default() -> JlsClientConfig {
+        JlsClientConfig {
             enable: false,
             user: JlsUser::default(),
         }
@@ -134,3 +138,18 @@ pub(crate) fn set_zero_psk_binders(chp: &mut ClientHelloPayload) {
     }
 }
 
+
+
+/// Jls State
+#[derive(Clone,Debug,PartialEq,Default)]
+pub enum JlsState {
+    /// JLS authentication success
+    AuthSuccess,
+    /// JLS authentication failed
+    AuthFailed,
+    /// JLS authentication not yet happened
+    #[default]
+    NotAuthed,
+    /// JLS is not enabled
+    Disabled,
+}

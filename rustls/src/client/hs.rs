@@ -522,6 +522,9 @@ fn emit_client_hello_for_retry(
                     .unwrap(),
                 &buf,
             );
+        cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
+    } else {
+        debug!("JLS disabled");
     }
     if let HandshakePayload::ClientHello(inner) = &mut chp.payload {
         inner.random = input.random;

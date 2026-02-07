@@ -30,8 +30,6 @@ use crate::unbuffered::{EncryptError, TransmitTlsData};
 use crate::{DistinguishedName, crypto};
 use crate::{KeyLog, WantsVersions, compress, sign, verify, versions};
 
-use crate::jls::JlsConfig;
-
 /// A trait for the ability to store client session data, so that sessions
 /// can be resumed in future connections.
 ///
@@ -223,7 +221,7 @@ pub struct ClientConfig {
     pub enable_early_data: bool,
 
     /// JLS Client Configuration
-    pub jls_config: JlsConfig,
+    pub jls_config: crate::jls::JlsClientConfig,
 
     /// If set to `true`, requires the server to support the extended
     /// master secret extraction method defined in [RFC 7627].
@@ -834,6 +832,11 @@ impl ConnectionCore<ClientConnectionData> {
         common_state.protocol = proto;
         common_state.enable_secret_extraction = config.enable_secret_extraction;
         common_state.fips = config.fips();
+        common_state.jls_authed = if config.jls_config.enable {
+            crate::jls::JlsState::NotAuthed
+        } else {
+            crate::jls::JlsState::Disabled
+        };
         let mut data = ClientConnectionData::new();
 
         let mut cx = hs::ClientContext {

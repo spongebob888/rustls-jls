@@ -461,8 +461,6 @@ mod suites;
 mod versions;
 mod webpki;
 
-mod jls;
-
 /// Internal classes that are used in integration tests.
 /// The contents of this section DO NOT form part of the stable interface.
 #[allow(missing_docs)]
@@ -578,7 +576,6 @@ pub use crate::ticketer::TicketSwitcher;
 pub use crate::tls12::Tls12CipherSuite;
 pub use crate::tls13::Tls13CipherSuite;
 pub use crate::verify::DigitallySignedStruct;
-pub use crate::jls::{JlsConfig,server::JlsServerConfig};
 pub use crate::versions::{ALL_VERSIONS, DEFAULT_VERSIONS, SupportedProtocolVersion};
 pub use crate::webpki::RootCertStore;
 
@@ -698,6 +695,9 @@ pub mod time_provider;
 
 /// APIs abstracting over locking primitives.
 pub mod lock;
+
+/// JLS related APIs.
+pub mod jls;
 
 /// Polyfills for features that are not yet stabilized or available with current MSRV.
 pub(crate) mod polyfill;

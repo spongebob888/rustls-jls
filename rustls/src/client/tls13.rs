@@ -95,15 +95,18 @@ pub(super) fn handle_server_hello(
     let is_jls = config.jls_config.user.check_fake_random(&randoms.server, 
         &buf);
     
-    if is_jls && config.jls_config.enable{
+    match (is_jls, config.jls_config.enable){
+        (true, true) => {
         debug!("JLS authencation success");
-        cx.common.jls_authed = Some(true);
+        cx.common.jls_authed = crate::jls::JlsState::AuthSuccess;
         cx.common.jls_chosen_user = Some(config.jls_config.user.clone());
     }
-    else if config.jls_config.enable {
+    (false, true) => {
         debug!("JLS authencation failed");
-        cx.common.jls_authed = Some(false);
+        cx.common.jls_authed = crate::jls::JlsState::AuthFailed;
     }
+    (_, false) => {}
+}
         
     validate_server_hello(cx.common, server_hello)?;
 
@@ -1173,7 +1176,7 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
             .ok_or(Error::NoCertificatesPresented)?;
 
         let now = self.config.current_time()?;
-        let is_jls = cx.common.jls_authed == Some(true) && self.config.jls_config.enable;
+        let is_jls = cx.common.jls_authed == crate::jls::JlsState::AuthSuccess;
         let cert_verified;
         if !is_jls {
             cert_verified = self

@@ -31,14 +31,12 @@ mod connection {
     use crate::conn::{ConnectionCore, SideData};
     use crate::enums::{AlertDescription, ContentType, ProtocolVersion};
     use crate::error::Error;
-    use crate::jls::JlsUser;
     use crate::msgs::deframer::buffers::{DeframerVecBuffer, Locator};
     use crate::msgs::handshake::{ClientExtension, ServerExtension};
     use crate::msgs::message::InboundPlainMessage;
     use crate::server::{ServerConfig, ServerConnectionData};
     use crate::sync::Arc;
     use crate::vecbuf::ChunkVecBuffer;
-    use crate::JlsConfig;
 
     /// A QUIC client or server connection.
     #[derive(Debug)]
@@ -308,7 +306,7 @@ mod connection {
                 .get_jls_upstream_addr()
         }
         /// Get chosen jls user
-        pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
+        pub fn jls_chosen_usesr(&self) -> Option<&crate::jls::JlsUser> {
             self.inner.core.common_state.jls_chosen_user.as_ref()
         }
     }

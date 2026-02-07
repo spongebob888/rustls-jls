@@ -6,14 +6,15 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::thread::{self, sleep};
 
+use rustls::jls::JlsState;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::server::Acceptor;
-use rustls::{ClientConfig, JlsConfig, JlsServerConfig, RootCertStore, ServerConfig};
+use rustls::{ClientConfig, jls::JlsClientConfig, jls::JlsServerConfig, RootCertStore, ServerConfig};
 
 fn client_one_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
-    config.jls_config = JlsConfig::new("123", "123");
+    config.jls_config = JlsClientConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -22,7 +23,7 @@ fn client_one_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.is_jls() == Some(true));
+    assert!(tls.conn.jls_state() == rustls::jls::JlsState::AuthSuccess);
     assert!(tls.conn.is_early_data_accepted() == false);
     let ciphersuite = tls
         .conn
@@ -46,7 +47,7 @@ fn client_one_rtt(mut config: ClientConfig, port: u16) {
 fn client_zero_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
-    config.jls_config = JlsConfig::new("123", "123");
+    config.jls_config = JlsClientConfig::new("123", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -55,7 +56,7 @@ fn client_zero_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.is_jls() == Some(true));
+    assert!(tls.conn.jls_state() == JlsState::AuthSuccess);
     assert!(tls.conn.is_early_data_accepted() == true);
     let ciphersuite = tls
         .conn
@@ -74,7 +75,7 @@ fn client_zero_rtt(mut config: ClientConfig, port: u16) {
 fn client_wrong_passwd(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
-    config.jls_config = JlsConfig::new("1238", "123");
+    config.jls_config = JlsClientConfig::new("1238", "123");
 
     let server_name = "localhost".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
@@ -83,7 +84,7 @@ fn client_wrong_passwd(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.is_jls() == Some(false));
+    assert!(tls.conn.jls_state() == JlsState::AuthFailed);
     assert!(tls.conn.is_early_data_accepted() == false);
     return;
     let ciphersuite = tls
@@ -117,7 +118,7 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
     config.jls_config =
         JlsServerConfig::new("123".into(), "1".into(), Some("localhost:443".into()), None)
-            .add_user("123".into(), "123".into());
+            .add_user("123".into(), "123".into()).into();
     let mut cfg = Arc::new(config);
 
     for n in 0..iter {
@@ -142,11 +143,11 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
                         break;
                     }
                 }
-                assert!(conn.is_jls() == Some(jls));
+                assert!((conn.jls_state() == JlsState::AuthSuccess) == jls);
                 assert!(conn.jls_chosen_user().unwrap().user_iv == "123");
             }
             log::info!(
-                "Received message from client: {:?}",
+                "Received message `from client: {:?}",
                 String::from_utf8(buf[..len].to_vec())
             );
 

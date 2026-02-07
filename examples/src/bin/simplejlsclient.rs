@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use rustls::{RootCertStore, JlsConfig};
+use rustls::{RootCertStore, jls::JlsClientConfig};
 
 fn main() {
     env_logger::init();
@@ -22,7 +22,7 @@ fn main() {
     let mut config = rustls::ClientConfig::builder()
         .with_root_certificates(root_store)
         .with_no_client_auth();
-    config.jls_config = JlsConfig::new("3070111071563328618171495819203123318",
+    config.jls_config = JlsClientConfig::new("3070111071563328618171495819203123318",
     "3070111071563328618171495819203123318");
     let server_name = "www.visa.cn".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();

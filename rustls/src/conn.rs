@@ -19,8 +19,6 @@ use crate::msgs::message::{InboundPlainMessage, Message, MessagePayload};
 use crate::record_layer::Decrypted;
 use crate::suites::{ExtractedSecrets, PartiallyExtractedSecrets};
 use crate::vecbuf::ChunkVecBuffer;
-#[cfg(feature = "std")]
-use crate::JlsConfig;
 
 pub(crate) mod unbuffered;
 
@@ -764,9 +762,10 @@ impl<Data> ConnectionCommon<Data> {
         self.sendable_tls.write_to(wr)
     }
 
-    /// Return Some(true) is a jls connection established, return None if not handshaked
-    pub fn is_jls(&self) -> Option<bool> {
-        self.core.common_state.jls_authed
+    /// Return Some(true) is a jls connection established, return None if not handshaked or disabled.
+    pub fn jls_state(&self) -> crate::jls::JlsState {
+        self.core.common_state.jls_authed.clone()
+
     }
     /// Return chosen jls user if jls authenticated
     /// None for failed or on going handshake
@@ -871,7 +870,7 @@ impl<Data> ConnectionCore<Data> {
     ) -> Result<IoState, Error> {
         // Tcp Forward
         // If jls is enabled and authentication is failed, we should not process any TLS message,
-        if self.common_state.jls_authed == Some(false)
+        if self.common_state.jls_authed == crate::jls::JlsState::AuthFailed
             && self.common_state.side == crate::Side::Server
         {
             return Ok(self.common_state.current_io_state());

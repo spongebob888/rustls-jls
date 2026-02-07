@@ -3,8 +3,7 @@ use std::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::vec;
 
-use crate::jls::{JlsUser, server};
-use crate::JlsConfig;
+use crate::jls::JlsUser;
 
 use crate::log::trace;
 

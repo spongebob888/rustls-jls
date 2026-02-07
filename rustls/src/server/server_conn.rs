@@ -10,8 +10,6 @@ use std::string::String;
 
 use pki_types::{DnsName, UnixTime};
 
-use crate::jls::server::JlsServerConfig;
-
 use super::hs;
 #[cfg(feature = "std")]
 use crate::WantsVerifier;
@@ -36,7 +34,7 @@ use crate::sync::Arc;
 use crate::time_provider::DefaultTimeProvider;
 use crate::time_provider::TimeProvider;
 use crate::vecbuf::ChunkVecBuffer;
-use crate::{compress, sign, verify, versions, DistinguishedName, JlsConfig, KeyLog, WantsVersions};
+use crate::{compress, sign, verify, versions, DistinguishedName, KeyLog, WantsVersions};
 
 /// A trait for the ability to store server session data.
 ///
@@ -378,7 +376,7 @@ pub struct ServerConfig {
     pub send_tls13_tickets: usize,
 
     /// JLS server configuration
-    pub jls_config: JlsServerConfig,
+    pub jls_config: Arc<crate::jls::JlsServerConfig>,
 
     /// If set to `true`, requires the client to support the extended
     /// master secret extraction method defined in [RFC 7627].
@@ -1177,6 +1175,11 @@ impl ConnectionCore<ServerConnectionData> {
         common.set_max_fragment_size(config.max_fragment_size)?;
         common.enable_secret_extraction = config.enable_secret_extraction;
         common.fips = config.fips();
+        common.jls_authed = if config.jls_config.enable {
+            crate::jls::JlsState::NotAuthed
+        } else {
+            crate::jls::JlsState::Disabled
+        };
         Ok(Self::new(
             Box::new(hs::ExpectClientHello::new(config.clone(), extra_exts)),
             ServerConnectionData {
@@ -1209,7 +1212,7 @@ pub struct ServerConnectionData {
     pub(super) received_resumption_data: Option<Vec<u8>>,
     pub(super) resumption_data: Vec<u8>,
     pub(super) early_data: EarlyDataState,
-    pub(super) jls_conn: JlsServerConfig,
+    pub(super) jls_conn: alloc::sync::Arc<crate::jls::JlsServerConfig>,
 }
 
 impl ServerConnectionData {

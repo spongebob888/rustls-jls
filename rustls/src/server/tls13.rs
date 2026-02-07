@@ -168,7 +168,7 @@ mod client_hello {
             }
 
             //JLS authentication
-            if cx.common.jls_authed == Some(false) {
+            if cx.common.jls_authed == crate::jls::JlsState::AuthFailed {
                 return Ok(Box::new(jls::ExpectForward {}));
             }
 
