@@ -44,7 +44,6 @@ pub(super) type NextState<'a> = Box<dyn State<ClientConnectionData> + 'a>;
 pub(super) type NextStateOrError<'a> = Result<NextState<'a>, Error>;
 pub(super) type ClientContext<'a> = crate::common_state::Context<'a, ClientConnectionData>;
 
-
 use crate::msgs::codec::Codec; //jls
 
 fn find_session(
@@ -507,16 +506,24 @@ fn emit_client_hello_for_retry(
     };
 
     //JLS fake random generation
-    if let HandshakePayload::ClientHello(inner)= &mut chp.payload {
-        inner.random = Random([0;32]);
+    if let HandshakePayload::ClientHello(inner) = &mut chp.payload {
+        inner.random = Random([0; 32]);
     }
     let mut buf = Vec::<u8>::new();
     chp.encode(&mut buf);
-    let fake_random = input.config.jls_config.user.
-    build_fake_random(input.random.0[0..16].try_into().unwrap(),
-    &buf);
-    input.random.0 = fake_random;
-    if let HandshakePayload::ClientHello(inner)= &mut chp.payload {
+    if input.config.jls_config.enable {
+        input.random.0 = input
+            .config
+            .jls_config
+            .user
+            .build_fake_random(
+                input.random.0[0..16]
+                    .try_into()
+                    .unwrap(),
+                &buf,
+            );
+    }
+    if let HandshakePayload::ClientHello(inner) = &mut chp.payload {
         inner.random = input.random;
     }
     // End JLS Handling
