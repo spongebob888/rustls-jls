@@ -27,7 +27,10 @@ use crate::msgs::ccs::ChangeCipherSpecPayload;
 use crate::msgs::codec::{Codec, Reader};
 use crate::msgs::enums::{ExtensionType, KeyUpdateRequest};
 use crate::msgs::handshake::{
-    CertificatePayloadTls13, ClientExtension, EchConfigPayload, HandshakeMessagePayload, HandshakePayload, HasServerExtensions, KeyShareEntry, NewSessionTicketPayloadTls13, PresharedKeyIdentity, PresharedKeyOffer, Random, ServerExtension, ServerHelloPayload, CERTIFICATE_MAX_SIZE_LIMIT
+    CERTIFICATE_MAX_SIZE_LIMIT, CertificatePayloadTls13, ClientExtension, EchConfigPayload,
+    HandshakeMessagePayload, HandshakePayload, HasServerExtensions, KeyShareEntry,
+    NewSessionTicketPayloadTls13, PresharedKeyIdentity, PresharedKeyOffer, Random, ServerExtension,
+    ServerHelloPayload,
 };
 use crate::msgs::message::{Message, MessagePayload};
 use crate::msgs::persist;
@@ -76,11 +79,10 @@ pub(super) fn handle_server_hello(
     server_hello_msg: &Message<'_>,
     ech_state: Option<EchState>,
 ) -> hs::NextStateOrError<'static> {
-
     // JLS authentication
     let server_hello_clone = ServerHelloPayload {
         legacy_version: server_hello.legacy_version.clone(),
-        random: Random([0u8;32]),
+        random: Random([0u8; 32]),
         session_id: server_hello.session_id.clone(),
         cipher_suite: server_hello.cipher_suite.clone(),
         compression_method: server_hello.compression_method.clone(),
@@ -92,22 +94,24 @@ pub(super) fn handle_server_hello(
     };
     let mut buf = Vec::<u8>::new();
     sh_hs.encode(&mut buf);
-    let is_jls = config.jls_config.user.check_fake_random(&randoms.server, 
-        &buf);
-    
-    match (is_jls, config.jls_config.enable){
+    let is_jls = config
+        .jls_config
+        .user
+        .check_fake_random(&randoms.server, &buf);
+
+    match (is_jls, config.jls_config.enable) {
         (true, true) => {
-        debug!("JLS authencation success");
-        cx.common.jls_authed = crate::jls::JlsState::AuthSuccess;
-        cx.common.jls_chosen_user = Some(config.jls_config.user.clone());
+            debug!("JLS authencation success");
+            cx.common.jls_authed = crate::jls::JlsState::AuthSuccess;
+            cx.common.jls_chosen_user = Some(config.jls_config.user.clone());
+        }
+        (false, true) => {
+            debug!("JLS authencation failed");
+            cx.common.jls_authed = crate::jls::JlsState::AuthFailed;
+        }
+        (_, false) => {}
     }
-    (false, true) => {
-        debug!("JLS authencation failed");
-        cx.common.jls_authed = crate::jls::JlsState::AuthFailed;
-    }
-    (_, false) => {}
-}
-        
+
     validate_server_hello(cx.common, server_hello)?;
 
     let their_key_share = server_hello
@@ -1180,21 +1184,20 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
         let cert_verified;
         if !is_jls {
             cert_verified = self
-            .config
-            .verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                &self.server_name,
-                &self.server_cert.ocsp_response,
-                now,
-            )
-            .map_err(|err| {
-                cx.common
-                    .send_cert_verify_error_alert(err)
-            })?;
-        }
-        else {
+                .config
+                .verifier
+                .verify_server_cert(
+                    end_entity,
+                    intermediates,
+                    &self.server_name,
+                    &self.server_cert.ocsp_response,
+                    now,
+                )
+                .map_err(|err| {
+                    cx.common
+                        .send_cert_verify_error_alert(err)
+                })?;
+        } else {
             cert_verified = verify::ServerCertVerified::assertion();
         }
 
@@ -1204,19 +1207,18 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
         let sig_verified;
         if !is_jls {
             sig_verified = self
-            .config
-            .verifier
-            .verify_tls13_signature(
-                construct_server_verify_message(&handshake_hash).as_ref(),
-                end_entity,
-                cert_verify,
-            )
-            .map_err(|err| {
-                cx.common
-                    .send_cert_verify_error_alert(err)
-            })?;
-        }
-        else {
+                .config
+                .verifier
+                .verify_tls13_signature(
+                    construct_server_verify_message(&handshake_hash).as_ref(),
+                    end_entity,
+                    cert_verify,
+                )
+                .map_err(|err| {
+                    cx.common
+                        .send_cert_verify_error_alert(err)
+                })?;
+        } else {
             sig_verified = verify::HandshakeSignatureValid::assertion();
         }
 

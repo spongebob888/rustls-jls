@@ -54,7 +54,7 @@ pub struct CommonState {
     queued_key_update_message: Option<Vec<u8>>,
 
     /// None: not auth yet; false: auth failed;true: auth succeeded
-    pub jls_authed: crate::jls::JlsState, 
+    pub jls_authed: crate::jls::JlsState,
     /// The jls user authenticated.
     pub jls_chosen_user: Option<JlsUser>,
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.

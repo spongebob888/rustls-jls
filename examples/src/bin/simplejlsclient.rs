@@ -22,8 +22,10 @@ fn main() {
     let mut config = rustls::ClientConfig::builder()
         .with_root_certificates(root_store)
         .with_no_client_auth();
-    config.jls_config = JlsClientConfig::new("3070111071563328618171495819203123318",
-    "3070111071563328618171495819203123318");
+    config.jls_config = JlsClientConfig::new(
+        "3070111071563328618171495819203123318",
+        "3070111071563328618171495819203123318",
+    );
     let server_name = "www.visa.cn".try_into().unwrap();
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
     let mut sock = TcpStream::connect("127.0.0.1:4443").unwrap();

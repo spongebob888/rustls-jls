@@ -764,13 +764,18 @@ impl<Data> ConnectionCommon<Data> {
 
     /// Return Some(true) is a jls connection established, return None if not handshaked or disabled.
     pub fn jls_state(&self) -> crate::jls::JlsState {
-        self.core.common_state.jls_authed.clone()
-
+        self.core
+            .common_state
+            .jls_authed
+            .clone()
     }
     /// Return chosen jls user if jls authenticated
     /// None for failed or on going handshake
     pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
-        self.core.common_state.jls_chosen_user.as_ref()
+        self.core
+            .common_state
+            .jls_chosen_user
+            .as_ref()
     }
 }
 
@@ -875,7 +880,7 @@ impl<Data> ConnectionCore<Data> {
         {
             return Ok(self.common_state.current_io_state());
         }
-        
+
         let mut state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
             Ok(state) => state,
             Err(e) => {

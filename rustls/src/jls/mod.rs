@@ -1,42 +1,41 @@
-
 use std::string::String;
 
 use crate::log::trace;
 use crate::msgs::handshake::{ClientExtension, ClientHelloPayload};
 
-#[cfg(feature = "ring")]
-use ring::digest::{digest, SHA256};
-#[cfg(not(feature = "ring"))]
-use aws_lc_rs::digest::{digest, SHA256};
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
+#[cfg(not(feature = "ring"))]
+use aws_lc_rs::digest::{SHA256, digest};
+#[cfg(feature = "ring")]
+use ring::digest::{SHA256, digest};
 
 // use aes_gcm to support 512bits long nonce (not supported by ring)
 use aes_gcm::{
-    aead::consts::U32,
-    aes::Aes256,
     AeadInPlace, // Or `Aes128Gcm`
     AesGcm,
     KeyInit,
+    aead::consts::U32,
+    aes::Aes256,
 };
 
 pub(crate) mod server;
 
 pub use server::JlsServerConfig;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 /// JLS Configuration
 pub struct JlsClientConfig {
     /// enable JLS
     pub enable: bool,
     /// user password of a JLS peer
-    pub user: JlsUser
+    pub user: JlsUser,
 }
 
 /// JLS User information
 /// user_iv is generally used as username
-#[derive(Clone,Debug)]
-pub struct  JlsUser {
+#[derive(Clone, Debug)]
+pub struct JlsUser {
     /// user password of a JLS peer
     pub user_pwd: String,
     /// user iv for a JLS peer
@@ -96,7 +95,7 @@ impl JlsUser {
             .decrypt_in_place(iv.as_ref().into(), b"", &mut buffer)
             .is_ok();
         is_valid
-    }    
+    }
 }
 
 impl Default for JlsUser {
@@ -126,7 +125,6 @@ impl Default for JlsClientConfig {
     }
 }
 
-
 // fill zero in the psk binders field.
 pub(crate) fn set_zero_psk_binders(chp: &mut ClientHelloPayload) {
     let last_extension = chp.extensions.last_mut();
@@ -138,10 +136,8 @@ pub(crate) fn set_zero_psk_binders(chp: &mut ClientHelloPayload) {
     }
 }
 
-
-
 /// Jls State
-#[derive(Clone,Debug,PartialEq,Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum JlsState {
     /// JLS authentication success
     AuthSuccess,

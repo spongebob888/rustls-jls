@@ -297,7 +297,7 @@ mod connection {
         pub fn server_name(&self) -> Option<&str> {
             self.inner.core.get_sni_str()
         }
-        
+
         /// Get upstream address
         pub fn get_upstream_addr(&self) -> Option<String> {
             self.inner
@@ -307,7 +307,11 @@ mod connection {
         }
         /// Get chosen jls user
         pub fn jls_chosen_usesr(&self) -> Option<&crate::jls::JlsUser> {
-            self.inner.core.common_state.jls_chosen_user.as_ref()
+            self.inner
+                .core
+                .common_state
+                .jls_chosen_user
+                .as_ref()
         }
     }
 

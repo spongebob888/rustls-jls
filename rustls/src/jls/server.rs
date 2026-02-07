@@ -1,7 +1,7 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use std::net::SocketAddr;
 use std::string::{String, ToString};
-use alloc::vec::Vec;
-use alloc::vec;
 
 use crate::jls::JlsUser;
 
@@ -26,17 +26,23 @@ pub struct JlsServerConfig {
 
 impl JlsServerConfig {
     /// Create a new jls server configuration
-    pub fn new(pwd: String, iv: String, 
+    pub fn new(
+        pwd: String,
+        iv: String,
         upstream_addr: Option<String>,
-        mut upstream_sni: Option<String>) -> Self {
+        mut upstream_sni: Option<String>,
+    ) -> Self {
         match upstream_addr.clone() {
-            Some(addr) =>  {
+            Some(addr) => {
                 if let Err(_) = addr.parse::<SocketAddr>() {
                     if upstream_sni.is_none() {
-                        upstream_sni = addr.split(":").next().map(|s| s.to_string());
+                        upstream_sni = addr
+                            .split(":")
+                            .next()
+                            .map(|s| s.to_string());
                     }
                 }
-            },
+            }
             None => {
                 upstream_sni = None;
             }
@@ -71,7 +77,10 @@ impl JlsServerConfig {
         self.upstream_addr = Some(addr.clone());
         // If string is an ip address, we use this as the upstream sni
         if addr.parse::<SocketAddr>().is_err() && self.upstream_sni.is_none() {
-            self.upstream_sni = addr.split(":").next().map(|s| s.to_string());
+            self.upstream_sni = addr
+                .split(":")
+                .next()
+                .map(|s| s.to_string());
         }
         self
     }

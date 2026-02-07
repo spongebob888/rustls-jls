@@ -627,11 +627,11 @@ pub mod server {
     mod common;
     pub(crate) mod handy;
     mod hs;
+    mod jls;
     mod server_conn;
     #[cfg(feature = "tls12")]
     mod tls12;
     mod tls13;
-    mod jls;
 
     pub use builder::WantsServerCert;
     #[cfg(any(feature = "std", feature = "hashbrown"))]

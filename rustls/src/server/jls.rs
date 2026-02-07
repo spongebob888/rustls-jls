@@ -1,4 +1,7 @@
-use crate::{jls::{JlsState,JlsServerConfig}, log::{debug, error}};
+use crate::{
+    jls::{JlsServerConfig, JlsState},
+    log::{debug, error},
+};
 
 use alloc::boxed::Box;
 use alloc::string::ToString;
@@ -56,11 +59,11 @@ pub(super) fn handle_client_hello_tls13(
 
     let random = &client_hello.random.0;
 
-    let jls_chosen =  config
-        .users.iter().find(|x|
-        x.check_fake_random(random, &buf));
-    if jls_chosen.is_some() && valid_name
-    {
+    let jls_chosen = config
+        .users
+        .iter()
+        .find(|x| x.check_fake_random(random, &buf));
+    if jls_chosen.is_some() && valid_name {
         debug!("JLS client authenticated");
         cx.common.jls_authed = JlsState::AuthSuccess;
         cx.common.jls_chosen_user = jls_chosen.cloned();

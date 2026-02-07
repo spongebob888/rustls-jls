@@ -9,7 +9,9 @@ use std::thread::{self, sleep};
 use rustls::jls::JlsState;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::server::Acceptor;
-use rustls::{ClientConfig, jls::JlsClientConfig, jls::JlsServerConfig, RootCertStore, ServerConfig};
+use rustls::{
+    ClientConfig, RootCertStore, ServerConfig, jls::JlsClientConfig, jls::JlsServerConfig,
+};
 
 fn client_one_rtt(mut config: ClientConfig, port: u16) {
     // Allow using SSLKEYLOGFILE.
@@ -118,7 +120,8 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
     config.jls_config =
         JlsServerConfig::new("123".into(), "1".into(), Some("localhost:443".into()), None)
-            .add_user("123".into(), "123".into()).into();
+            .add_user("123".into(), "123".into())
+            .into();
     let mut cfg = Arc::new(config);
 
     for n in 0..iter {

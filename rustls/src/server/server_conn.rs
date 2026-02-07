@@ -34,7 +34,7 @@ use crate::sync::Arc;
 use crate::time_provider::DefaultTimeProvider;
 use crate::time_provider::TimeProvider;
 use crate::vecbuf::ChunkVecBuffer;
-use crate::{compress, sign, verify, versions, DistinguishedName, KeyLog, WantsVersions};
+use crate::{DistinguishedName, KeyLog, WantsVersions, compress, sign, verify, versions};
 
 /// A trait for the ability to store server session data.
 ///

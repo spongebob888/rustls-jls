@@ -3,10 +3,10 @@ use std::sync::Arc;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+use rustls::RootCertStore;
 use rustls::pki_types::ServerName;
-use rustls::{RootCertStore};
 
-fn start_connection(config: &Arc<rustls::ClientConfig>, domain_name: &str, ip:&str) {
+fn start_connection(config: &Arc<rustls::ClientConfig>, domain_name: &str, ip: &str) {
     let server_name = ServerName::try_from(domain_name)
         .expect("invalid DNS name")
         .to_owned();
@@ -73,8 +73,7 @@ fn main() {
     // second will use early data if the server supports it.
 
     println!("* Sending first request:");
-    start_connection(&config, "codepen.io","104.17.14.48:443");
+    start_connection(&config, "codepen.io", "104.17.14.48:443");
     println!("* Sending second request:");
-    start_connection(&config, "codepen.io","104.16.176.44:443");
-
+    start_connection(&config, "codepen.io", "104.16.176.44:443");
 }
