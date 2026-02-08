@@ -1,13 +1,13 @@
 [package]
-name = "rustls"
-version = "0.23.36"
+name = "rustls-jls"
+version = "0.23.36-1.3.1"
 edition = "2021"
 rust-version = "1.71"
 license = "Apache-2.0 OR ISC OR MIT"
 readme = "../README.md"
 description = "Rustls is a modern TLS library written in Rust."
-homepage = "https://github.com/rustls/rustls"
-repository = "https://github.com/rustls/rustls"
+homepage = "https://github.com/spongebob888/rustls-jls"
+repository = "https://github.com/spongebob888/rustls-jls"
 categories = ["network-programming", "cryptography"]
 autobenches = false
 autotests = false
