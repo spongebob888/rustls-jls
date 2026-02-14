@@ -10,8 +10,6 @@ use kernel::KernelConnection;
 use crate::common_state::{CommonState, Context, DEFAULT_BUFFER_LIMIT, IoState, State};
 use crate::enums::{AlertDescription, ContentType, ProtocolVersion};
 use crate::error::{Error, PeerMisbehaved};
-#[cfg(feature = "std")]
-use crate::jls::JlsUser;
 use crate::log::trace;
 use crate::msgs::deframer::DeframerIter;
 use crate::msgs::deframer::buffers::{BufferProgress, DeframerVecBuffer, Delocator, Locator};
@@ -800,7 +798,7 @@ impl<Data> ConnectionCommon<Data> {
     }
     /// Return chosen jls user if jls authenticated
     /// None for failed or on going handshake
-    pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
+    pub fn jls_chosen_user(&self) -> Option<&crate::jls::JlsUser> {
         self.core
             .common_state
             .jls_chosen_user

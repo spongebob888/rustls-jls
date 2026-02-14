@@ -8,7 +8,6 @@ use crate::crypto::SupportedKxGroup;
 use crate::enums::{AlertDescription, ContentType, HandshakeType, ProtocolVersion};
 use crate::error::{Error, InvalidMessage, PeerMisbehaved};
 use crate::hash_hs::HandshakeHash;
-use crate::jls::JlsUser;
 use crate::log::{debug, error, warn};
 use crate::msgs::alert::AlertMessagePayload;
 use crate::msgs::base::Payload;
@@ -57,7 +56,7 @@ pub struct CommonState {
     /// None: not auth yet; false: auth failed;true: auth succeeded
     pub jls_authed: crate::jls::JlsState,
     /// The jls user authenticated.
-    pub jls_chosen_user: Option<JlsUser>,
+    pub jls_chosen_user: Option<crate::jls::JlsUser>,
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
     pub(crate) protocol: Protocol,
     pub(crate) quic: quic::Quic,

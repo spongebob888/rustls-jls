@@ -57,8 +57,6 @@ mod client_hello {
     };
     use crate::verify::DigitallySignedStruct;
 
-    use crate::server::jls;
-
     #[derive(PartialEq)]
     pub(super) enum EarlyDataDecision {
         Disabled,
@@ -171,8 +169,8 @@ mod client_hello {
 
             //JLS authentication
             if cx.common.jls_authed == crate::jls::JlsState::AuthFailed {
-                return Ok(Box::new(jls::ExpectForward {}));
-            }
+              return Ok(Box::new(crate::server::jls::ExpectForward {}));
+             }
 
             if client_hello.has_certificate_compression_extension_with_duplicates() {
                 return Err(cx.common.send_fatal_alert(

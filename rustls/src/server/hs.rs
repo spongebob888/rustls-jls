@@ -754,7 +754,7 @@ pub(super) fn process_client_hello<'m>(
             )
         })?;
 
-    super::jls::handle_client_hello_tls13(cx, client_hello);
+    super::jls::handle_client_hello_tls13(cx, &m);
 
     Ok((client_hello, sig_schemes.to_owned()))
 }

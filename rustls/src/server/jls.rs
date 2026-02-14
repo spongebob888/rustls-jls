@@ -1,6 +1,6 @@
 use crate::{
     jls::{JlsServerConfig, JlsState},
-    log::{debug, error},
+    log::{debug, error}, msgs::message::MessagePayload,
 };
 
 use alloc::boxed::Box;
@@ -25,31 +25,40 @@ use super::{ServerConnectionData, hs::ServerContext};
 /// Return true if jls authentication passed
 pub(super) fn handle_client_hello_tls13(
     cx: &mut ServerContext<'_>,
-    client_hello: &ClientHelloPayload,
+    client_hello: &Message<'_>,
 ) -> bool {
+
+    let (mut encoded,  parsed) = match &client_hello.payload {
+            MessagePayload::Handshake {
+        parsed: _parsed,
+        encoded: _encoded,
+    } => {
+        let ch = if let HandshakeMessagePayload(HandshakePayload::ClientHello(ch)) = _parsed {
+            ch
+        } else {
+            unreachable!()
+        };
+        (_encoded.bytes().to_vec(), ch)
+    }
+    _ => unreachable!()
+    };
     let config = &cx.data.jls_conn;
     if !config.enable {
         debug!("JLS disabled");
         return false;
     }
-    let mut client_hello_clone = ClientHelloPayload {
-        client_version: client_hello.client_version.clone(),
-        random: Random([0u8; 32]),
-        session_id: client_hello.session_id.clone(),
-        cipher_suites: client_hello.cipher_suites.clone(),
-        compression_methods: client_hello.compression_methods.clone(),
-        extensions: client_hello.extensions.clone(),
-    };
+    // Fix fill random to be zero
+    encoded[6..6+32].fill(0);
+
     // PSK binders involves the calucaltion of hash of clienthello contradicting
     // with fake random generaton. Must be set zero before checking.
-    crate::jls::set_zero_psk_binders(&mut client_hello_clone);
-    let ch_hs = HandshakeMessagePayload (
-        HandshakePayload::ClientHello(client_hello_clone),
-    );
-    let mut buf = Vec::<u8>::new();
-    ch_hs.encode(&mut buf);
+    crate::jls::set_zero_psk_binders(parsed, &mut encoded);
+    // let ch_hs = HandshakeMessagePayload (
+    //     HandshakePayload::ClientHello(client_hello_clone),
+    // );
 
-    let server_name = client_hello
+
+    let server_name = parsed
         .server_name.as_ref()
         .map_or(None, |x| match x {
             crate::msgs::handshake::ServerNamePayload::SingleDnsName(x) => Some(x),
@@ -60,12 +69,12 @@ pub(super) fn handle_client_hello_tls13(
     let server_name = server_name.map(|x| x.as_ref().to_string());
     let valid_name = config.check_server_name(server_name.as_deref());
 
-    let random = &client_hello.random.0;
+    let random = &parsed.random.0;
 
     let jls_chosen = config
         .users
         .iter()
-        .find(|x| x.check_fake_random(random, &buf));
+        .find(|x| x.check_fake_random(random, &encoded));
     if jls_chosen.is_some() && valid_name {
         debug!("JLS client authenticated");
         cx.common.jls_authed = JlsState::AuthSuccess;

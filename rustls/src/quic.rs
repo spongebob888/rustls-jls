@@ -20,7 +20,6 @@ mod connection {
     use alloc::vec::Vec;
     use core::fmt::{self, Debug};
     use core::ops::{Deref, DerefMut};
-    use std::string::String;
 
     use pki_types::ServerName;
 
@@ -329,7 +328,7 @@ mod connection {
         }
 
         /// Get upstream address
-        pub fn get_upstream_addr(&self) -> Option<String> {
+        pub fn get_upstream_addr(&self) -> Option<std::string::String> {
             self.inner
                 .core
                 .data

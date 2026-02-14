@@ -6,7 +6,6 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 #[cfg(feature = "std")]
 use std::io;
-use std::string::String;
 
 use pki_types::{DnsName, UnixTime};
 
@@ -982,7 +981,7 @@ impl UnbufferedServerConnection {
             .dangerous_into_kernel_connection()
     }
     /// Get upstream address
-    pub fn get_upstream_addr(&self) -> Option<String> {
+    pub fn get_upstream_addr(&self) -> Option<std::string::String> {
         self.inner
             .core
             .data
@@ -1270,7 +1269,7 @@ impl ServerConnectionData {
         self.sni.as_ref().map(AsRef::as_ref)
     }
 
-    pub(crate) fn get_jls_upstream_addr(&self) -> Option<String> {
+    pub(crate) fn get_jls_upstream_addr(&self) -> Option<std::string::String> {
         self.jls_conn.upstream_addr.clone()
     }
 }

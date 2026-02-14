@@ -1,7 +1,9 @@
+use core::ops::DerefMut;
 use std::string::String;
 
 use crate::log::trace;
-use crate::msgs::handshake::{PresharedKeyOffer, ClientHelloPayload};
+use crate::msgs::codec::Codec;
+use crate::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, PresharedKeyBinder, PresharedKeyOffer};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -136,13 +138,18 @@ impl Default for JlsClientConfig {
 }
 
 // fill zero in the psk binders field.
-pub(crate) fn set_zero_psk_binders(chp: &mut ClientHelloPayload) {
-    let  last_extension = chp.extensions.preshared_key_offer.as_mut();
-    if let Some( offer) = last_extension {
-        for ii in 0..offer.binders.len() {
-            let len = offer.binders[ii].as_ref().len();
-            offer.binders[0] = vec![0u8; len].into();
+pub(crate) fn set_zero_psk_binders(chp: &ClientHelloPayload, msg: &mut [u8]) {
+    if let Some(psk) = chp.preshared_key_offer.as_ref() {
+        let mut psk = psk.clone();
+        for bind in psk.binders.iter_mut() {
+            let len = bind.as_ref().len();
+            *bind = PresharedKeyBinder::from(vec![0; len]);
         }
+        let mut psk_bytes = Vec::new();
+        psk.binders.encode(&mut psk_bytes);
+        let len = msg.len();
+        msg[len - psk_bytes.len()..].copy_from_slice(&psk_bytes);
+        log::trace!("set zero psk binders: {:?}", msg);
     }
 }
 
