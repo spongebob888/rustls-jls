@@ -20,6 +20,7 @@ mod connection {
     use alloc::vec::Vec;
     use core::fmt::{self, Debug};
     use core::ops::{Deref, DerefMut};
+    use std::string::String;
 
     use pki_types::ServerName;
 
@@ -325,6 +326,22 @@ mod connection {
         /// The server name is also used to match sessions during session resumption.
         pub fn server_name(&self) -> Option<&str> {
             self.inner.core.get_sni_str()
+        }
+
+        /// Get upstream address
+        pub fn get_upstream_addr(&self) -> Option<String> {
+            self.inner
+                .core
+                .data
+                .get_jls_upstream_addr()
+        }
+        /// Get chosen jls user
+        pub fn jls_chosen_usesr(&self) -> Option<&crate::jls::JlsUser> {
+            self.inner
+                .core
+                .common_state
+                .jls_chosen_user
+                .as_ref()
         }
     }
 

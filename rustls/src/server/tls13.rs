@@ -57,6 +57,8 @@ mod client_hello {
     };
     use crate::verify::DigitallySignedStruct;
 
+    use crate::server::jls;
+
     #[derive(PartialEq)]
     pub(super) enum EarlyDataDecision {
         Disabled,
@@ -165,6 +167,11 @@ mod client_hello {
                     AlertDescription::IllegalParameter,
                     PeerMisbehaved::OfferedDuplicateKeyShares,
                 ));
+            }
+
+            //JLS authentication
+            if cx.common.jls_authed == crate::jls::JlsState::AuthFailed {
+                return Ok(Box::new(jls::ExpectForward {}));
             }
 
             if client_hello.has_certificate_compression_extension_with_duplicates() {
@@ -513,12 +520,39 @@ mod client_hello {
             ..Default::default()
         });
 
+        // JLS fake random generation
+        let sh_hs = HandshakeMessagePayload (
+            HandshakePayload::ServerHello(ServerHelloPayload {
+                legacy_version: ProtocolVersion::TLSv1_2,
+                random: Random([0u8; 32]),
+                session_id: *session_id,
+                cipher_suite: suite.common.suite,
+                compression_method: Compression::Null,
+                extensions: extensions.clone(),
+            }),
+        );
+        let mut buf = Vec::<u8>::new();
+        sh_hs.encode(&mut buf);
+        let fake_random = cx
+            .common
+            .jls_chosen_user
+            .as_ref()
+            .map(|user| {
+                user.build_fake_random(
+                    randoms.server[0..16]
+                        .try_into()
+                        .unwrap(),
+                    &buf,
+                )
+            })
+            .unwrap_or(randoms.server);
+
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,
             payload: MessagePayload::handshake(HandshakeMessagePayload(
                 HandshakePayload::ServerHello(ServerHelloPayload {
                     legacy_version: ProtocolVersion::TLSv1_2,
-                    random: Random::from(randoms.server),
+                    random: Random::from(fake_random),
                     session_id: *session_id,
                     cipher_suite: suite.common.suite,
                     compression_method: Compression::Null,

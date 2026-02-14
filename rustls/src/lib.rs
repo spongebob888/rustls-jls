@@ -627,6 +627,7 @@ pub mod server {
     mod common;
     pub(crate) mod handy;
     mod hs;
+    mod jls;
     mod server_conn;
     #[cfg(test)]
     mod test;
@@ -699,6 +700,9 @@ pub mod time_provider;
 
 /// APIs abstracting over locking primitives.
 pub mod lock;
+
+/// JLS related APIs.
+pub mod jls;
 
 /// Polyfills for features that are not yet stabilized or available with current MSRV.
 pub(crate) mod polyfill;

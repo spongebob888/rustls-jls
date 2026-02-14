@@ -425,6 +425,32 @@ fn emit_client_hello_for_retry(
 
     let mut chp = HandshakeMessagePayload(HandshakePayload::ClientHello(chp_payload));
 
+    //JLS fake random generation
+    if let HandshakeMessagePayload(HandshakePayload::ClientHello(inner)) = &mut chp {
+        inner.random = Random([0; 32]);
+    }
+    let mut buf = Vec::<u8>::new();
+    crate::msgs::codec::Codec::encode(&chp,&mut buf);
+    if input.config.jls_config.enable {
+        input.random.0 = input
+            .config
+            .jls_config
+            .user
+            .build_fake_random(
+                input.random.0[0..16]
+                    .try_into()
+                    .unwrap(),
+                &buf,
+            );
+        cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
+    } else {
+        debug!("JLS disabled");
+    }
+    if let HandshakeMessagePayload(HandshakePayload::ClientHello(inner)) = &mut chp {
+        inner.random = input.random;
+    }
+    // End JLS Handling
+
     let tls13_early_data_key_schedule = match (ech_state.as_mut(), tls13_session) {
         // If we're performing ECH and resuming, then the PSK binder will have been dealt with
         // separately, and we need to take the early_data_key_schedule computed for the inner hello.

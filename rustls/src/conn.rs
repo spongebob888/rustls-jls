@@ -10,6 +10,8 @@ use kernel::KernelConnection;
 use crate::common_state::{CommonState, Context, DEFAULT_BUFFER_LIMIT, IoState, State};
 use crate::enums::{AlertDescription, ContentType, ProtocolVersion};
 use crate::error::{Error, PeerMisbehaved};
+#[cfg(feature = "std")]
+use crate::jls::JlsUser;
 use crate::log::trace;
 use crate::msgs::deframer::DeframerIter;
 use crate::msgs::deframer::buffers::{BufferProgress, DeframerVecBuffer, Delocator, Locator};
@@ -788,6 +790,22 @@ impl<Data> ConnectionCommon<Data> {
     pub fn write_tls(&mut self, wr: &mut dyn io::Write) -> Result<usize, io::Error> {
         self.sendable_tls.write_to(wr)
     }
+
+    /// Return Some(true) is a jls connection established, return None if not handshaked or disabled.
+    pub fn jls_state(&self) -> crate::jls::JlsState {
+        self.core
+            .common_state
+            .jls_authed
+            .clone()
+    }
+    /// Return chosen jls user if jls authenticated
+    /// None for failed or on going handshake
+    pub fn jls_chosen_user(&self) -> Option<&JlsUser> {
+        self.core
+            .common_state
+            .jls_chosen_user
+            .as_ref()
+    }
 }
 
 impl<'a, Data> From<&'a mut ConnectionCommon<Data>> for Context<'a, Data> {
@@ -884,6 +902,14 @@ impl<Data> ConnectionCore<Data> {
         deframer_buffer: &mut DeframerVecBuffer,
         sendable_plaintext: &mut ChunkVecBuffer,
     ) -> Result<IoState, Error> {
+        // Tcp Forward
+        // If jls is enabled and authentication is failed, we should not process any TLS message,
+        if self.common_state.jls_authed == crate::jls::JlsState::AuthFailed
+            && self.common_state.side == crate::Side::Server
+        {
+            return Ok(self.common_state.current_io_state());
+        }
+
         let mut state = match mem::replace(&mut self.state, Err(Error::HandshakeNotComplete)) {
             Ok(state) => state,
             Err(e) => {

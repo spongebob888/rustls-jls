@@ -79,6 +79,39 @@ pub(super) fn handle_server_hello(
     ech_state: Option<EchState>,
     input: ClientHelloInput,
 ) -> hs::NextStateOrError<'static> {
+    // JLS authentication
+    let server_hello_clone = ServerHelloPayload {
+        legacy_version: server_hello.legacy_version.clone(),
+        random: crate::msgs::handshake::Random([0u8; 32]),
+        session_id: server_hello.session_id.clone(),
+        cipher_suite: server_hello.cipher_suite.clone(),
+        compression_method: server_hello.compression_method.clone(),
+        extensions: server_hello.extensions.clone(),
+    };
+    let sh_hs = HandshakeMessagePayload (
+        HandshakePayload::ServerHello(server_hello_clone),
+    );
+    let mut buf = Vec::<u8>::new();
+    sh_hs.encode(&mut buf);
+    let config = &input.config;
+    let is_jls = config
+        .jls_config
+        .user
+        .check_fake_random(&randoms.server, &buf);
+
+    match (is_jls, config.jls_config.enable) {
+        (true, true) => {
+            debug!("JLS authencation success");
+            cx.common.jls_authed = crate::jls::JlsState::AuthSuccess;
+            cx.common.jls_chosen_user = Some(config.jls_config.user.clone());
+        }
+        (false, true) => {
+            debug!("JLS authencation failed");
+            cx.common.jls_authed = crate::jls::JlsState::AuthFailed;
+        }
+        (_, false) => {}
+    }
+
     validate_server_hello(cx.common, server_hello)?;
 
     let their_key_share = server_hello
@@ -1165,36 +1198,47 @@ impl State<ClientConnectionData> for ExpectCertificateVerify<'_> {
             .ok_or(Error::NoCertificatesPresented)?;
 
         let now = self.config.current_time()?;
-
-        let cert_verified = self
-            .config
-            .verifier
-            .verify_server_cert(
-                end_entity,
-                intermediates,
-                &self.server_name,
-                &self.server_cert.ocsp_response,
-                now,
-            )
-            .map_err(|err| {
-                cx.common
-                    .send_cert_verify_error_alert(err)
-            })?;
+        let is_jls = cx.common.jls_authed == crate::jls::JlsState::AuthSuccess;
+        let cert_verified;
+        if !is_jls {
+            cert_verified = self
+                .config
+                .verifier
+                .verify_server_cert(
+                    end_entity,
+                    intermediates,
+                    &self.server_name,
+                    &self.server_cert.ocsp_response,
+                    now,
+                )
+                .map_err(|err| {
+                    cx.common
+                        .send_cert_verify_error_alert(err)
+                })?;
+        } else {
+            cert_verified = verify::ServerCertVerified::assertion();
+        }
 
         // 2. Verify their signature on the handshake.
         let handshake_hash = self.transcript.current_hash();
-        let sig_verified = self
-            .config
-            .verifier
-            .verify_tls13_signature(
-                construct_server_verify_message(&handshake_hash).as_ref(),
-                end_entity,
-                cert_verify,
-            )
-            .map_err(|err| {
-                cx.common
-                    .send_cert_verify_error_alert(err)
-            })?;
+
+        let sig_verified;
+        if !is_jls {
+            sig_verified = self
+                .config
+                .verifier
+                .verify_tls13_signature(
+                    construct_server_verify_message(&handshake_hash).as_ref(),
+                    end_entity,
+                    cert_verify,
+                )
+                .map_err(|err| {
+                    cx.common
+                        .send_cert_verify_error_alert(err)
+                })?;
+        } else {
+            sig_verified = verify::HandshakeSignatureValid::assertion();
+        }
 
         cx.common.peer_certificates = Some(self.server_cert.cert_chain.into_owned());
         self.transcript.add_message(&m);

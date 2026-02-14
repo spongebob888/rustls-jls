@@ -6,6 +6,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 #[cfg(feature = "std")]
 use std::io;
+use std::string::String;
 
 use pki_types::{DnsName, UnixTime};
 
@@ -397,6 +398,9 @@ pub struct ServerConfig {
     /// If this is 0, no tickets are sent and clients will not be able to
     /// do any resumption.
     pub send_tls13_tickets: usize,
+
+    /// JLS server configuration
+    pub jls_config: Arc<crate::jls::JlsServerConfig>,
 
     /// If set to `true`, requires the client to support the extended
     /// master secret extraction method defined in [RFC 7627].
@@ -977,6 +981,13 @@ impl UnbufferedServerConnection {
             .core
             .dangerous_into_kernel_connection()
     }
+    /// Get upstream address
+    pub fn get_upstream_addr(&self) -> Option<String> {
+        self.inner
+            .core
+            .data
+            .get_jls_upstream_addr()
+    }
 }
 
 impl Deref for UnbufferedServerConnection {
@@ -1213,9 +1224,17 @@ impl ConnectionCore<ServerConnectionData> {
         common.set_max_fragment_size(config.max_fragment_size)?;
         common.enable_secret_extraction = config.enable_secret_extraction;
         common.fips = config.fips();
+        common.jls_authed = if config.jls_config.enable {
+            crate::jls::JlsState::NotAuthed
+        } else {
+            crate::jls::JlsState::Disabled
+        };
         Ok(Self::new(
-            Box::new(hs::ExpectClientHello::new(config, extra_exts)),
-            ServerConnectionData::default(),
+            Box::new(hs::ExpectClientHello::new(config.clone(), extra_exts)),
+            ServerConnectionData {
+                jls_conn: config.jls_config.clone(),
+                ..Default::default()
+            },
             common,
         ))
     }
@@ -1242,12 +1261,17 @@ pub struct ServerConnectionData {
     pub(super) received_resumption_data: Option<Vec<u8>>,
     pub(super) resumption_data: Vec<u8>,
     pub(super) early_data: EarlyDataState,
+    pub(super) jls_conn: alloc::sync::Arc<crate::jls::JlsServerConfig>,
 }
 
 impl ServerConnectionData {
     #[cfg(feature = "std")]
     pub(super) fn get_sni_str(&self) -> Option<&str> {
         self.sni.as_ref().map(AsRef::as_ref)
+    }
+
+    pub(crate) fn get_jls_upstream_addr(&self) -> Option<String> {
+        self.jls_conn.upstream_addr.clone()
     }
 }
 

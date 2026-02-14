@@ -8,6 +8,7 @@ use crate::crypto::SupportedKxGroup;
 use crate::enums::{AlertDescription, ContentType, HandshakeType, ProtocolVersion};
 use crate::error::{Error, InvalidMessage, PeerMisbehaved};
 use crate::hash_hs::HandshakeHash;
+use crate::jls::JlsUser;
 use crate::log::{debug, error, warn};
 use crate::msgs::alert::AlertMessagePayload;
 use crate::msgs::base::Payload;
@@ -53,6 +54,10 @@ pub struct CommonState {
     pub(crate) sendable_tls: ChunkVecBuffer,
     queued_key_update_message: Option<Vec<u8>>,
 
+    /// None: not auth yet; false: auth failed;true: auth succeeded
+    pub jls_authed: crate::jls::JlsState,
+    /// The jls user authenticated.
+    pub jls_chosen_user: Option<JlsUser>,
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
     pub(crate) protocol: Protocol,
     pub(crate) quic: quic::Quic,
@@ -87,6 +92,9 @@ impl CommonState {
             received_plaintext: ChunkVecBuffer::new(Some(DEFAULT_RECEIVED_PLAINTEXT_LIMIT)),
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
             queued_key_update_message: None,
+            jls_authed: Default::default(),
+            jls_chosen_user: None,
+
             protocol: Protocol::Tcp,
             quic: quic::Quic::default(),
             enable_secret_extraction: false,
