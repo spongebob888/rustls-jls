@@ -799,10 +799,10 @@ impl<Data> ConnectionCommon<Data> {
     /// Return chosen jls user if jls authenticated
     /// None for failed or on going handshake
     pub fn jls_chosen_user(&self) -> Option<&crate::jls::JlsUser> {
-        self.core
-            .common_state
-            .jls_chosen_user
-            .as_ref()
+        match self.core.common_state.jls_authed {
+            crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
+            _ => None,
+        }
     }
 }
 
@@ -902,7 +902,7 @@ impl<Data> ConnectionCore<Data> {
     ) -> Result<IoState, Error> {
         // Tcp Forward
         // If jls is enabled and authentication is failed, we should not process any TLS message,
-        if self.common_state.jls_authed == crate::jls::JlsState::AuthFailed
+        if matches!(self.common_state.jls_authed, crate::jls::JlsState::AuthFailed(_))
             && self.common_state.side == crate::Side::Server
         {
             return Ok(self.common_state.current_io_state());

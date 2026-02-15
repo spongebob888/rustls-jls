@@ -24,6 +24,7 @@ use super::{ServerConnectionData, hs::ServerContext};
 
 /// Return true if jls authentication passed
 pub(super) fn handle_client_hello_tls13(
+    config: &JlsServerConfig,
     cx: &mut ServerContext<'_>,
     client_hello: &Message<'_>,
 ) -> bool {
@@ -42,9 +43,9 @@ pub(super) fn handle_client_hello_tls13(
     }
     _ => unreachable!()
     };
-    let config = &cx.data.jls_conn;
     if !config.enable {
         debug!("JLS disabled");
+        cx.common.jls_authed = JlsState::Disabled;
         return false;
     }
     // Fix fill random to be zero
@@ -74,24 +75,24 @@ pub(super) fn handle_client_hello_tls13(
     let jls_chosen = config
         .users
         .iter()
-        .find(|x| x.check_fake_random(random, &encoded));
-    if jls_chosen.is_some() && valid_name {
+        .find(|x| x.check_fake_random(random, &encoded) && valid_name);
+    if let Some(jls_chosen) = jls_chosen {
         debug!("JLS client authenticated");
-        cx.common.jls_authed = JlsState::AuthSuccess;
-        cx.common.jls_chosen_user = jls_chosen.cloned();
+        cx.common.jls_authed = JlsState::AuthSuccess(jls_chosen.clone());
         return true;
     } else {
         if valid_name {
-            debug!("JLS client authentication failed: wrong pwd/iv");
+            log::warn!("JLS client authentication failed: wrong pwd/iv");
         } else {
-            debug!("JLS client authentication failed: wrong server name");
+            log::warn!("JLS client authentication failed: wrong server name");
         }
 
-        cx.common.jls_authed = JlsState::AuthFailed;
+
         let upstream_addr = config.upstream_addr.clone();
         if upstream_addr.is_none() {
-            error!("[jls] No upstream addr provided");
+            log::warn!("[jls] No upstream addr provided");
         }
+        cx.common.jls_authed = JlsState::AuthFailed(upstream_addr);
         return false;
     }
 }

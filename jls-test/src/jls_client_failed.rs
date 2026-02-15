@@ -26,7 +26,7 @@ fn client_unknown_ca_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     let ret = tls.write_all(test_vector);
-    assert!(tls.conn.jls_state() == JlsState::AuthFailed);
+    assert!(matches!(tls.conn.jls_state(), JlsState::AuthFailed(_)));
     assert!(ret.is_err());
     return;
 }
@@ -43,7 +43,7 @@ fn client_true_ca_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.jls_state() == JlsState::AuthFailed);
+    assert!(matches!(tls.conn.jls_state(), JlsState::AuthFailed(_)));
     let ciphersuite = tls
         .conn
         .negotiated_cipher_suite()

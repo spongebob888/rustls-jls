@@ -36,7 +36,7 @@ pub struct JlsClientConfig {
 
 /// JLS User information
 /// user_iv is generally used as username
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct JlsUser {
     /// user password of a JLS peer
     pub user_pwd: String,
@@ -154,12 +154,12 @@ pub(crate) fn set_zero_psk_binders(chp: &ClientHelloPayload, msg: &mut [u8]) {
 }
 
 /// Jls State
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, Default)]
 pub enum JlsState {
     /// JLS authentication success
-    AuthSuccess,
-    /// JLS authentication failed
-    AuthFailed,
+    AuthSuccess(JlsUser),
+    /// JLS authentication failed with upstream addr
+    AuthFailed(Option<String>),
     /// JLS authentication not yet happened
     #[default]
     NotAuthed,

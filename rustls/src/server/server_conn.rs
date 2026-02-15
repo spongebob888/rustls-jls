@@ -982,10 +982,10 @@ impl UnbufferedServerConnection {
     }
     /// Get upstream address
     pub fn get_upstream_addr(&self) -> Option<std::string::String> {
-        self.inner
-            .core
-            .data
-            .get_jls_upstream_addr()
+        match &self.inner.core.common_state.jls_authed {
+            crate::jls::JlsState::AuthFailed(upstream_addr ) => upstream_addr.clone(),
+            _ => None,
+        }
     }
 }
 
@@ -1231,7 +1231,6 @@ impl ConnectionCore<ServerConnectionData> {
         Ok(Self::new(
             Box::new(hs::ExpectClientHello::new(config.clone(), extra_exts)),
             ServerConnectionData {
-                jls_conn: config.jls_config.clone(),
                 ..Default::default()
             },
             common,
@@ -1260,17 +1259,12 @@ pub struct ServerConnectionData {
     pub(super) received_resumption_data: Option<Vec<u8>>,
     pub(super) resumption_data: Vec<u8>,
     pub(super) early_data: EarlyDataState,
-    pub(super) jls_conn: alloc::sync::Arc<crate::jls::JlsServerConfig>,
 }
 
 impl ServerConnectionData {
     #[cfg(feature = "std")]
     pub(super) fn get_sni_str(&self) -> Option<&str> {
         self.sni.as_ref().map(AsRef::as_ref)
-    }
-
-    pub(crate) fn get_jls_upstream_addr(&self) -> Option<std::string::String> {
-        self.jls_conn.upstream_addr.clone()
     }
 }
 

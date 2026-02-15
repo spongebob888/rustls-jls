@@ -168,7 +168,7 @@ mod client_hello {
             }
 
             //JLS authentication
-            if cx.common.jls_authed == crate::jls::JlsState::AuthFailed {
+            if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
               return Ok(Box::new(crate::server::jls::ExpectForward {}));
              }
 
@@ -531,9 +531,17 @@ mod client_hello {
         );
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
-        let fake_random = cx
-            .common
-            .jls_chosen_user
+        let jls_chosen_user = match cx.common.jls_authed {
+            crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
+            crate::jls::JlsState::AuthFailed(_) => {
+                panic!("JLS authentication failed but still in the handshake, this should never happen");
+            },
+            crate::jls::JlsState::NotAuthed => {
+                panic!("JLS authentication not completed but still in the handshake, this should never happen");
+            },
+            crate::jls::JlsState::Disabled => None,
+        };
+        let fake_random = jls_chosen_user
             .as_ref()
             .map(|user| {
                 user.build_fake_random(

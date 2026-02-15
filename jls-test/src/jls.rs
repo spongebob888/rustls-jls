@@ -26,7 +26,7 @@ fn client_one_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.jls_state() == rustls::jls::JlsState::AuthSuccess);
+    assert!(matches!(tls.conn.jls_state(), rustls::jls::JlsState::AuthSuccess(_)));
     assert!(tls.conn.is_early_data_accepted() == false);
     let ciphersuite = tls
         .conn
@@ -59,7 +59,7 @@ fn client_zero_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.jls_state() == JlsState::AuthSuccess);
+    assert!(matches!(tls.conn.jls_state(), JlsState::AuthSuccess(_)));
     assert!(tls.conn.is_early_data_accepted() == true);
     let ciphersuite = tls
         .conn
@@ -87,26 +87,14 @@ fn client_wrong_passwd(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(tls.conn.jls_state() == JlsState::AuthFailed);
+    assert!(matches!(tls.conn.jls_state(), JlsState::AuthFailed(_)));
     assert!(tls.conn.is_early_data_accepted() == false);
-    return;
-    let ciphersuite = tls
-        .conn
-        .negotiated_cipher_suite()
-        .unwrap();
-    writeln!(
-        &mut std::io::stderr(),
-        "Current ciphersuite: {:?}",
-        ciphersuite.suite()
-    )
-    .unwrap();
-    let mut plaintext = [0; 100];
-    let len = tls.read(&mut plaintext).unwrap();
-    assert!(plaintext[..len] == *test_vector);
-    log::info!("client read:{:?}", plaintext);
-    stdout().write_all(&plaintext).unwrap();
 
-    tls.flush().unwrap();
+    // let mut plaintext = [0; 100];
+    // let len = tls.read(&mut plaintext).unwrap();
+
+    // log::info!("client read:{:?}", plaintext);
+    return;
 }
 use std::env;
 use std::error::Error as StdError;
@@ -147,7 +135,7 @@ fn server_upstream(mut config: ServerConfig, port: u16, iter: u32, jls: bool) {
                         break;
                     }
                 }
-                assert!((conn.jls_state() == JlsState::AuthSuccess) == jls);
+                assert!((matches!(conn.jls_state(), JlsState::AuthSuccess(_))));
                 assert!(conn.jls_chosen_user().unwrap().user_iv == "123");
             }
             log::info!(
@@ -262,6 +250,6 @@ fn test_false_jls_server() {
     });
 
     let _ = server_up.join();
-
+ 
     thread::sleep(time::Duration::from_millis(2000));
 }

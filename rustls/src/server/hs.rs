@@ -349,6 +349,9 @@ impl ExpectClientHello {
         m: &Message<'_>,
         cx: &mut ServerContext<'_>,
     ) -> NextStateOrError<'static> {
+        super::jls::handle_client_hello_tls13(&self.config.jls_config,cx, &m);
+
+
         let tls13_enabled = self
             .config
             .supports_version(ProtocolVersion::TLSv1_3);
@@ -753,8 +756,6 @@ pub(super) fn process_client_hello<'m>(
                 PeerIncompatible::SignatureAlgorithmsExtensionRequired,
             )
         })?;
-
-    super::jls::handle_client_hello_tls13(cx, &m);
 
     Ok((client_hello, sig_schemes.to_owned()))
 }

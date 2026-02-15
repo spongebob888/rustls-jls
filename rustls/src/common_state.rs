@@ -53,10 +53,8 @@ pub struct CommonState {
     pub(crate) sendable_tls: ChunkVecBuffer,
     queued_key_update_message: Option<Vec<u8>>,
 
-    /// None: not auth yet; false: auth failed;true: auth succeeded
+    /// Authentication result of JlsState, default is not authed
     pub jls_authed: crate::jls::JlsState,
-    /// The jls user authenticated.
-    pub jls_chosen_user: Option<crate::jls::JlsUser>,
     /// Protocol whose key schedule should be used. Unused for TLS < 1.3.
     pub(crate) protocol: Protocol,
     pub(crate) quic: quic::Quic,
@@ -92,7 +90,6 @@ impl CommonState {
             sendable_tls: ChunkVecBuffer::new(Some(DEFAULT_BUFFER_LIMIT)),
             queued_key_update_message: None,
             jls_authed: Default::default(),
-            jls_chosen_user: None,
 
             protocol: Protocol::Tcp,
             quic: quic::Quic::default(),
