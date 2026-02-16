@@ -3,7 +3,10 @@ use std::string::String;
 
 use crate::log::trace;
 use crate::msgs::codec::Codec;
-use crate::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, PresharedKeyBinder, PresharedKeyOffer};
+use crate::msgs::handshake::{
+    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, PresharedKeyBinder,
+    PresharedKeyOffer,
+};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -149,7 +152,7 @@ pub(crate) fn set_zero_psk_binders(chp: &ClientHelloPayload, msg: &mut [u8]) {
         psk.binders.encode(&mut psk_bytes);
         let len = msg.len();
         msg[len - psk_bytes.len()..].copy_from_slice(&psk_bytes);
-        log::trace!("set zero psk binders: {:?}", msg);
+        trace!("set zero psk binders: {:?}", msg);
     }
 }
 

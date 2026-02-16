@@ -1,6 +1,7 @@
 use crate::{
     jls::{JlsServerConfig, JlsState},
-    log::{debug, error}, msgs::message::MessagePayload,
+    log::{debug, error, warn},
+    msgs::message::MessagePayload,
 };
 
 use alloc::boxed::Box;
@@ -12,10 +13,7 @@ use crate::{
     common_state::{Context, State},
     msgs::{
         codec::Codec,
-        handshake::{
-            ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
-            Random,
-        },
+        handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random},
         message::Message,
     },
 };
@@ -28,20 +26,19 @@ pub(super) fn handle_client_hello_tls13(
     cx: &mut ServerContext<'_>,
     client_hello: &Message<'_>,
 ) -> bool {
-
-    let (mut encoded,  parsed) = match &client_hello.payload {
-            MessagePayload::Handshake {
-        parsed: _parsed,
-        encoded: _encoded,
-    } => {
-        let ch = if let HandshakeMessagePayload(HandshakePayload::ClientHello(ch)) = _parsed {
-            ch
-        } else {
-            unreachable!()
-        };
-        (_encoded.bytes().to_vec(), ch)
-    }
-    _ => unreachable!()
+    let (mut encoded, parsed) = match &client_hello.payload {
+        MessagePayload::Handshake {
+            parsed: _parsed,
+            encoded: _encoded,
+        } => {
+            let ch = if let HandshakeMessagePayload(HandshakePayload::ClientHello(ch)) = _parsed {
+                ch
+            } else {
+                unreachable!()
+            };
+            (_encoded.bytes().to_vec(), ch)
+        }
+        _ => unreachable!(),
     };
     if !config.enable {
         debug!("JLS disabled");
@@ -49,7 +46,7 @@ pub(super) fn handle_client_hello_tls13(
         return false;
     }
     // Fix fill random to be zero
-    encoded[6..6+32].fill(0);
+    encoded[6..6 + 32].fill(0);
 
     // PSK binders involves the calucaltion of hash of clienthello contradicting
     // with fake random generaton. Must be set zero before checking.
@@ -58,9 +55,9 @@ pub(super) fn handle_client_hello_tls13(
     //     HandshakePayload::ClientHello(client_hello_clone),
     // );
 
-
     let server_name = parsed
-        .server_name.as_ref()
+        .server_name
+        .as_ref()
         .map_or(None, |x| match x {
             crate::msgs::handshake::ServerNamePayload::SingleDnsName(x) => Some(x),
             crate::msgs::handshake::ServerNamePayload::IpAddress => None,
@@ -82,15 +79,14 @@ pub(super) fn handle_client_hello_tls13(
         return true;
     } else {
         if valid_name {
-            log::warn!("JLS client authentication failed: wrong pwd/iv");
+            warn!("JLS client authentication failed: wrong pwd/iv");
         } else {
-            log::warn!("JLS client authentication failed: wrong server name");
+            warn!("JLS client authentication failed: wrong server name");
         }
-
 
         let upstream_addr = config.upstream_addr.clone();
         if upstream_addr.is_none() {
-            log::warn!("[jls] No upstream addr provided");
+            warn!("[jls] No upstream addr provided");
         }
         cx.common.jls_authed = JlsState::AuthFailed(upstream_addr);
         return false;
