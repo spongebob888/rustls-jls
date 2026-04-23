@@ -169,8 +169,8 @@ mod client_hello {
 
             //JLS authentication
             if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
-              return Ok(Box::new(crate::server::jls::ExpectForward {}));
-             }
+                return Ok(Box::new(crate::server::jls::ExpectForward {}));
+            }
 
             if client_hello.has_certificate_compression_extension_with_duplicates() {
                 return Err(cx.common.send_fatal_alert(
@@ -519,26 +519,28 @@ mod client_hello {
         });
 
         // JLS fake random generation
-        let sh_hs = HandshakeMessagePayload (
-            HandshakePayload::ServerHello(ServerHelloPayload {
-                legacy_version: ProtocolVersion::TLSv1_2,
-                random: Random([0u8; 32]),
-                session_id: *session_id,
-                cipher_suite: suite.common.suite,
-                compression_method: Compression::Null,
-                extensions: extensions.clone(),
-            }),
-        );
+        let sh_hs = HandshakeMessagePayload(HandshakePayload::ServerHello(ServerHelloPayload {
+            legacy_version: ProtocolVersion::TLSv1_2,
+            random: Random([0u8; 32]),
+            session_id: *session_id,
+            cipher_suite: suite.common.suite,
+            compression_method: Compression::Null,
+            extensions: extensions.clone(),
+        }));
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
         let jls_chosen_user = match cx.common.jls_authed {
             crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
             crate::jls::JlsState::AuthFailed(_) => {
-                panic!("JLS authentication failed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication failed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::NotAuthed => {
-                panic!("JLS authentication not completed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication not completed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::Disabled => None,
         };
         let fake_random = jls_chosen_user
