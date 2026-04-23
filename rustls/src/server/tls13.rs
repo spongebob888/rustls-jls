@@ -51,11 +51,11 @@ mod client_hello {
         ServerExtensions, ServerExtensionsInput, ServerHelloPayload, SessionId,
     };
     use crate::server::common::ActiveCertifiedKey;
-    use crate::{log, sign};
     use crate::tls13::key_schedule::{
         KeyScheduleEarly, KeyScheduleHandshake, KeySchedulePreHandshake,
     };
     use crate::verify::DigitallySignedStruct;
+    use crate::{log, sign};
 
     #[derive(PartialEq)]
     pub(super) enum EarlyDataDecision {
@@ -225,7 +225,10 @@ mod client_hello {
                 if matches!(cx.common.jls_authed, crate::jls::JlsState::AuthSuccess(_)) {
                     log::error!("Hello Retry request is illegal in JLS");
                     cx.common.jls_authed = crate::jls::JlsState::AuthFailed(
-                        self.config.jls_config.upstream_addr.clone(),
+                        self.config
+                            .jls_config
+                            .upstream_addr
+                            .clone(),
                     );
                     return Ok(Box::new(crate::server::jls::ExpectForward {}));
                 }
@@ -527,26 +530,28 @@ mod client_hello {
         });
 
         // JLS fake random generation
-        let sh_hs = HandshakeMessagePayload (
-            HandshakePayload::ServerHello(ServerHelloPayload {
-                legacy_version: ProtocolVersion::TLSv1_2,
-                random: Random([0u8; 32]),
-                session_id: *session_id,
-                cipher_suite: suite.common.suite,
-                compression_method: Compression::Null,
-                extensions: extensions.clone(),
-            }),
-        );
+        let sh_hs = HandshakeMessagePayload(HandshakePayload::ServerHello(ServerHelloPayload {
+            legacy_version: ProtocolVersion::TLSv1_2,
+            random: Random([0u8; 32]),
+            session_id: *session_id,
+            cipher_suite: suite.common.suite,
+            compression_method: Compression::Null,
+            extensions: extensions.clone(),
+        }));
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
         let jls_chosen_user = match cx.common.jls_authed {
             crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
             crate::jls::JlsState::AuthFailed(_) => {
-                panic!("JLS authentication failed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication failed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::NotAuthed => {
-                panic!("JLS authentication not completed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication not completed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::Disabled => None,
         };
         let fake_random = jls_chosen_user

@@ -329,24 +329,17 @@ mod connection {
 
         /// Get upstream address
         pub fn get_upstream_addr(&self) -> Option<std::string::String> {
-            match self.inner
-                .core
-                .common_state
-                .jls_authed {
+            match self.inner.core.common_state.jls_authed {
                 crate::jls::JlsState::AuthFailed(ref addr) => addr.clone(),
                 _ => None,
             }
         }
         /// Get chosen jls user
         pub fn jls_chosen_usesr(&self) -> Option<&crate::jls::JlsUser> {
-            
-            match self.inner
-                .core
-                .common_state.jls_authed {
+            match self.inner.core.common_state.jls_authed {
                 crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
                 _ => None,
-                }
-    
+            }
         }
     }
 

@@ -81,11 +81,7 @@ pub(super) fn handle_server_hello(
 ) -> hs::NextStateOrError<'static> {
     // JLS authentication
     let mut buf = match &server_hello_msg.payload {
-        MessagePayload::Handshake {
-            encoded,..
-        } => {
-            encoded.bytes().to_vec()
-        }
+        MessagePayload::Handshake { encoded, .. } => encoded.bytes().to_vec(),
         _ => unreachable!(),
     };
     // Fix fill random to be zero
@@ -99,17 +95,21 @@ pub(super) fn handle_server_hello(
     match (is_jls, &cx.common.jls_authed) {
         (true, crate::jls::JlsState::NotAuthed) => {
             debug!("JLS authencation success");
-            cx.common.jls_authed = crate::jls::JlsState::AuthSuccess(config.jls_config.user.clone());
+            cx.common.jls_authed =
+                crate::jls::JlsState::AuthSuccess(config.jls_config.user.clone());
         }
         (false, crate::jls::JlsState::NotAuthed) => {
             debug!("JLS authencation failed");
             cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
         }
-        (false, crate::jls::JlsState::AuthFailed(_)) => { // Receiving an HRR set authfailed
+        (false, crate::jls::JlsState::AuthFailed(_)) => {
+            // Receiving an HRR set authfailed
             crate::log::warn!("JLS authenticate failed and may have received a HelloRetryRequest");
         }
         (true, crate::jls::JlsState::AuthFailed(_)) => {
-            crate::log::error!("Protocol Violation: JLS authenticate success and received a HelloRetryRequest");
+            crate::log::error!(
+                "Protocol Violation: JLS authenticate success and received a HelloRetryRequest"
+            );
         }
         (_, crate::jls::JlsState::AuthSuccess(_)) => {
             crate::log::error!("repeated JLS authentication");

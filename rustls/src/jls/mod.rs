@@ -1,12 +1,8 @@
-use core::ops::DerefMut;
 use std::string::String;
 
 use crate::log::trace;
 use crate::msgs::codec::Codec;
-use crate::msgs::handshake::{
-    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, PresharedKeyBinder,
-    PresharedKeyOffer,
-};
+use crate::msgs::handshake::{ClientHelloPayload, PresharedKeyBinder};
 
 use alloc::vec;
 use alloc::vec::Vec;
