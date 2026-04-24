@@ -425,27 +425,51 @@ fn emit_client_hello_for_retry(
 
     let mut chp = HandshakeMessagePayload(HandshakePayload::ClientHello(chp_payload));
 
-    //JLS fake random generation
+    // JLS fake random generation
     if let HandshakeMessagePayload(HandshakePayload::ClientHello(inner)) = &mut chp {
         inner.random = Random([0; 32]);
     }
     let mut buf = Vec::<u8>::new();
     crate::msgs::codec::Codec::encode(&chp, &mut buf);
+
+    const JLS_FAKE_RANDOM_MAX_RETRIES: usize = 16;
+
     if input.config.jls_config.enable {
-        input.random.0 = input
-            .config
-            .jls_config
-            .user
-            .build_fake_random(
-                input.random.0[0..16]
-                    .try_into()
-                    .unwrap(),
-                &buf,
-            );
+        let secure_random = input.config.provider.secure_random;
+        let mut n: [u8; 16] = input.random.0[..16]
+            .try_into()
+            .expect("random must be at least 16 bytes");
+
+        let mut fake_random = None;
+        for _ in 0..JLS_FAKE_RANDOM_MAX_RETRIES {
+            match input
+                .config
+                .jls_config
+                .user
+                .build_fake_random(&n, &buf)
+            {
+                Ok(random) => {
+                    fake_random = Some(random);
+                    break;
+                }
+                Err(_) => {
+                    secure_random
+                        .fill(&mut n)
+                        .map_err(|_| {
+                            Error::General("failed to generate JLS client retry random".into())
+                        })?;
+                }
+            }
+        }
+
+        input.random.0 = fake_random
+            .ok_or_else(|| Error::General("JLS client fake random retry limit exceeded".into()))?;
+
         cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
     } else {
         debug!("JLS disabled");
     }
+
     if let HandshakeMessagePayload(HandshakePayload::ClientHello(inner)) = &mut chp {
         inner.random = input.random;
     }

@@ -53,9 +53,14 @@ impl JlsUser {
     }
 
     /// Build a fake random from a true random with given keyshare
-    pub fn build_fake_random(&self, random: &[u8; 16], auth_data: &[u8]) -> [u8; 32] {
+    pub fn build_fake_random(
+        &self,
+        random: &[u8; 16],
+        auth_data: &[u8],
+    ) -> Result<[u8; 32], &'static str> {
         let mut iv = self.user_iv.as_bytes().to_vec();
         iv.extend_from_slice(auth_data);
+
         let mut pwd = self.user_pwd.as_bytes().to_vec();
         pwd.extend_from_slice(auth_data);
 
@@ -72,7 +77,17 @@ impl JlsUser {
             .encrypt_in_place(iv.as_ref().into(), b"", &mut buffer)
             .unwrap();
 
-        buffer.try_into().unwrap()
+        let out: [u8; 32] = buffer.try_into().unwrap();
+
+        let suffix = &out[24..32];
+        if suffix == [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x01]
+            || suffix == [0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x00]
+            || suffix == [0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C]
+        {
+            return Err("forbidden fake_random suffix");
+        }
+
+        Ok(out)
     }
 
     /// Check if it's a valid fake random
