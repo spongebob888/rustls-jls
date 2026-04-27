@@ -88,9 +88,7 @@ pub(super) fn handle_server_hello(
         compression_method: server_hello.compression_method.clone(),
         extensions: server_hello.extensions.clone(),
     };
-    let sh_hs = HandshakeMessagePayload (
-        HandshakePayload::ServerHello(server_hello_clone),
-    );
+    let sh_hs = HandshakeMessagePayload(HandshakePayload::ServerHello(server_hello_clone));
     let mut buf = Vec::<u8>::new();
     sh_hs.encode(&mut buf);
     let config = &input.config;
@@ -102,7 +100,8 @@ pub(super) fn handle_server_hello(
     match (is_jls, config.jls_config.enable) {
         (true, true) => {
             debug!("JLS authencation success");
-            cx.common.jls_authed = crate::jls::JlsState::AuthSuccess(config.jls_config.user.clone());
+            cx.common.jls_authed =
+                crate::jls::JlsState::AuthSuccess(config.jls_config.user.clone());
         }
         (false, true) => {
             debug!("JLS authencation failed");

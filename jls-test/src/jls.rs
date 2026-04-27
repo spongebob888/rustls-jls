@@ -26,7 +26,10 @@ fn client_one_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(matches!(tls.conn.jls_state(), rustls::jls::JlsState::AuthSuccess(_)));
+    assert!(matches!(
+        tls.conn.jls_state(),
+        rustls::jls::JlsState::AuthSuccess(_)
+    ));
     assert!(tls.conn.is_early_data_accepted() == false);
     let ciphersuite = tls
         .conn
@@ -250,6 +253,6 @@ fn test_false_jls_server() {
     });
 
     let _ = server_up.join();
- 
+
     thread::sleep(time::Duration::from_millis(2000));
 }

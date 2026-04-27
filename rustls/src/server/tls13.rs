@@ -169,8 +169,8 @@ mod client_hello {
 
             //JLS authentication
             if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
-              return Ok(Box::new(crate::server::jls::ExpectForward {}));
-             }
+                return Ok(Box::new(crate::server::jls::ExpectForward {}));
+            }
 
             if client_hello.has_certificate_compression_extension_with_duplicates() {
                 return Err(cx.common.send_fatal_alert(
@@ -519,39 +519,65 @@ mod client_hello {
         });
 
         // JLS fake random generation
-        let sh_hs = HandshakeMessagePayload (
-            HandshakePayload::ServerHello(ServerHelloPayload {
-                legacy_version: ProtocolVersion::TLSv1_2,
-                random: Random([0u8; 32]),
-                session_id: *session_id,
-                cipher_suite: suite.common.suite,
-                compression_method: Compression::Null,
-                extensions: extensions.clone(),
-            }),
-        );
+        let sh_hs = HandshakeMessagePayload(HandshakePayload::ServerHello(ServerHelloPayload {
+            legacy_version: ProtocolVersion::TLSv1_2,
+            random: Random([0u8; 32]),
+            session_id: *session_id,
+            cipher_suite: suite.common.suite,
+            compression_method: Compression::Null,
+            extensions: extensions.clone(),
+        }));
         let mut buf = Vec::<u8>::new();
         sh_hs.encode(&mut buf);
         let jls_chosen_user = match cx.common.jls_authed {
             crate::jls::JlsState::AuthSuccess(ref user) => Some(user),
             crate::jls::JlsState::AuthFailed(_) => {
-                panic!("JLS authentication failed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication failed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::NotAuthed => {
-                panic!("JLS authentication not completed but still in the handshake, this should never happen");
-            },
+                panic!(
+                    "JLS authentication not completed but still in the handshake, this should never happen"
+                );
+            }
             crate::jls::JlsState::Disabled => None,
         };
-        let fake_random = jls_chosen_user
-            .as_ref()
-            .map(|user| {
-                user.build_fake_random(
-                    randoms.server[0..16]
-                        .try_into()
-                        .unwrap(),
-                    &buf,
+
+        const JLS_FAKE_RANDOM_MAX_RETRIES: usize = 16;
+        let fake_random = if let Some(user) = jls_chosen_user.as_ref() {
+            let secure_random = config.provider.secure_random;
+            let mut n: [u8; 16] = randoms.server[..16]
+                .try_into()
+                .expect("random must be at least 16 bytes");
+
+            let mut fake_random = None;
+            for _ in 0..JLS_FAKE_RANDOM_MAX_RETRIES {
+                match user.build_fake_random(&n, &buf) {
+                    Ok(fake) => {
+                        fake_random = Some(fake);
+                        break;
+                    }
+                    Err(_) => {
+                        if secure_random.fill(&mut n).is_err() {
+                            return Err(cx.common.send_fatal_alert(
+                                AlertDescription::InternalError,
+                                Error::General("failed to generate JLS retry random".into()),
+                            ));
+                        }
+                    }
+                }
+            }
+
+            fake_random.ok_or_else(|| {
+                cx.common.send_fatal_alert(
+                    AlertDescription::IllegalParameter,
+                    Error::General("JLS fake random retry limit exceeded".into()),
                 )
-            })
-            .unwrap_or(randoms.server);
+            })?
+        } else {
+            randoms.server
+        };
 
         let sh = Message {
             version: ProtocolVersion::TLSv1_2,

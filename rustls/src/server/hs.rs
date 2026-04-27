@@ -349,8 +349,7 @@ impl ExpectClientHello {
         m: &Message<'_>,
         cx: &mut ServerContext<'_>,
     ) -> NextStateOrError<'static> {
-        super::jls::handle_client_hello_tls13(&self.config.jls_config,cx, &m);
-
+        super::jls::handle_client_hello_tls13(&self.config.jls_config, cx, &m);
 
         let tls13_enabled = self
             .config

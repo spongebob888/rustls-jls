@@ -1,19 +1,17 @@
 use crate::{
     jls::{JlsServerConfig, JlsState},
-    log::{debug, error, warn},
+    log::{debug, warn},
     msgs::message::MessagePayload,
 };
 
 use alloc::boxed::Box;
 use alloc::string::ToString;
-use alloc::vec::Vec;
 
 use crate::{
-    Error, HandshakeType,
+    Error,
     common_state::{Context, State},
     msgs::{
-        codec::Codec,
-        handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random},
+        handshake::{HandshakeMessagePayload, HandshakePayload},
         message::Message,
     },
 };
@@ -45,12 +43,40 @@ pub(super) fn handle_client_hello_tls13(
         cx.common.jls_authed = JlsState::Disabled;
         return false;
     }
+
+    if encoded.len() < 38 {
+        warn!(
+            "JLS client authentication failed: encoded ClientHello too short: {}",
+            encoded.len()
+        );
+        let upstream_addr = config.upstream_addr.clone();
+        if upstream_addr.is_none() {
+            warn!("[jls] No upstream addr provided");
+        }
+        cx.common.jls_authed = JlsState::AuthFailed(upstream_addr);
+        return false;
+    }
+
     // Fix fill random to be zero
     encoded[6..6 + 32].fill(0);
 
-    // PSK binders involves the calucaltion of hash of clienthello contradicting
-    // with fake random generaton. Must be set zero before checking.
-    crate::jls::set_zero_psk_binders(parsed, &mut encoded);
+    // PSK binders involve the calculation of hash of ClientHello, which
+    // contradicts fake random generation. They must be zeroed before checking.
+    //
+    // Important:
+    // Do not rely on `parsed.preshared_key_offer` here. In some cases `parsed`
+    // may have been normalized or augmented and no longer match the original
+    // `encoded` bytes. Parse and modify the actual encoded ClientHello instead.
+    if let Err(e) = crate::jls::set_zero_psk_binders_from_encoded(&mut encoded) {
+        warn!("JLS client authentication failed: {}", e);
+        let upstream_addr = config.upstream_addr.clone();
+        if upstream_addr.is_none() {
+            warn!("[jls] No upstream addr provided");
+        }
+        cx.common.jls_authed = JlsState::AuthFailed(upstream_addr);
+        return false;
+    }
+
     // let ch_hs = HandshakeMessagePayload (
     //     HandshakePayload::ClientHello(client_hello_clone),
     // );
@@ -69,10 +95,14 @@ pub(super) fn handle_client_hello_tls13(
 
     let random = &parsed.random.0;
 
-    let jls_chosen = config
-        .users
-        .iter()
-        .find(|x| x.check_fake_random(random, &encoded) && valid_name);
+    let jls_chosen = if valid_name {
+        config
+            .users
+            .iter()
+            .find(|x| x.check_fake_random(random, &encoded))
+    } else {
+        None
+    };
     if let Some(jls_chosen) = jls_chosen {
         debug!("JLS client authenticated");
         cx.common.jls_authed = JlsState::AuthSuccess(jls_chosen.clone());
