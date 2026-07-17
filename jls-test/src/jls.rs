@@ -253,3 +253,71 @@ fn test_false_jls_server() {
  
     thread::sleep(time::Duration::from_millis(2000));
 }
+
+#[test]
+fn test_hello_retry_request_with_jls_enabled_falls_back_to_forwarding() {
+    use rustls::crypto::aws_lc_rs::kx_group::{SECP384R1, X25519};
+
+    let password = "test-jls-password";
+    let iv = "test-jls-iv";
+    let upstream = "127.0.0.1:443";
+    let provider = rustls::crypto::aws_lc_rs::default_provider();
+    let pki = TestPki::new();
+
+    // The client only sends a key share for its first group, while the server
+    // selects X25519. Ordinarily this would cause a HelloRetryRequest.
+    let mut client_config = ClientConfig::builder_with_provider(
+        rustls::crypto::CryptoProvider {
+            kx_groups: vec![SECP384R1, X25519],
+            ..provider.clone()
+        }
+        .into(),
+    )
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_root_certificates(RootCertStore::empty())
+    .with_no_client_auth();
+    client_config.jls_config = JlsClientConfig::new(password, iv);
+
+    let mut server_config = ServerConfig::builder_with_provider(
+        rustls::crypto::CryptoProvider {
+            kx_groups: vec![X25519],
+            ..provider
+        }
+        .into(),
+    )
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_no_client_auth()
+    .with_single_cert(vec![pki.server_cert_der], pki.server_key_der)
+    .unwrap();
+    server_config.jls_config = Arc::new(JlsServerConfig::new(
+        password.into(),
+        iv.into(),
+        Some(upstream.into()),
+        None,
+    ));
+
+    let server_name = "localhost".try_into().unwrap();
+    let mut client = rustls::ClientConnection::new(Arc::new(client_config), server_name).unwrap();
+    let mut server = rustls::ServerConnection::new(Arc::new(server_config)).unwrap();
+
+    let mut client_hello = Vec::new();
+    assert!(
+        client
+            .write_tls(&mut client_hello)
+            .unwrap()
+            > 200
+    );
+    server
+        .read_tls(&mut client_hello.as_slice())
+        .unwrap();
+    server.process_new_packets().unwrap();
+
+    assert!(matches!(
+        server.jls_state(),
+        JlsState::AuthFailed(Some(addr)) if addr == upstream
+    ));
+    assert_eq!(server.handshake_kind(), None);
+    assert!(!server.wants_write(), "server unexpectedly emitted an HRR");
+}
