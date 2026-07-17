@@ -80,19 +80,16 @@ pub(super) fn handle_server_hello(
     input: ClientHelloInput,
 ) -> hs::NextStateOrError<'static> {
     // JLS authentication
-    let server_hello_clone = ServerHelloPayload {
-        legacy_version: server_hello.legacy_version.clone(),
-        random: crate::msgs::handshake::Random([0u8; 32]),
-        session_id: server_hello.session_id.clone(),
-        cipher_suite: server_hello.cipher_suite.clone(),
-        compression_method: server_hello.compression_method.clone(),
-        extensions: server_hello.extensions.clone(),
+    let mut buf = match &server_hello_msg.payload {
+        MessagePayload::Handshake {
+            encoded,..
+        } => {
+            encoded.bytes().to_vec()
+        }
+        _ => unreachable!(),
     };
-    let sh_hs = HandshakeMessagePayload (
-        HandshakePayload::ServerHello(server_hello_clone),
-    );
-    let mut buf = Vec::<u8>::new();
-    sh_hs.encode(&mut buf);
+    // Fix fill random to be zero
+    buf[6..6 + 32].fill(0);
     let config = &input.config;
     let is_jls = config
         .jls_config
