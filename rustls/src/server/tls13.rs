@@ -51,7 +51,7 @@ mod client_hello {
         ServerExtensions, ServerExtensionsInput, ServerHelloPayload, SessionId,
     };
     use crate::server::common::ActiveCertifiedKey;
-    use crate::sign;
+    use crate::{log, sign};
     use crate::tls13::key_schedule::{
         KeyScheduleEarly, KeyScheduleHandshake, KeySchedulePreHandshake,
     };
@@ -169,8 +169,8 @@ mod client_hello {
 
             //JLS authentication
             if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
-              return Ok(Box::new(crate::server::jls::ExpectForward {}));
-             }
+                return Ok(Box::new(crate::server::jls::ExpectForward {}));
+            }
 
             if client_hello.has_certificate_compression_extension_with_duplicates() {
                 return Err(cx.common.send_fatal_alert(
@@ -220,6 +220,14 @@ mod client_hello {
                         AlertDescription::IllegalParameter,
                         PeerMisbehaved::RefusedToFollowHelloRetryRequest,
                     ));
+                }
+                //JLS authentication
+                log::error!("Hello Retry request is illegal in JLS");
+                cx.common.jls_authed = crate::jls::JlsState::AuthFailed(
+                    self.config.jls_config.upstream_addr.clone()
+                );
+                if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
+                    return Ok(Box::new(crate::server::jls::ExpectForward {}));
                 }
 
                 emit_hello_retry_request(

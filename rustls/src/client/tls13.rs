@@ -96,16 +96,25 @@ pub(super) fn handle_server_hello(
         .user
         .check_fake_random(&randoms.server, &buf);
 
-    match (is_jls, config.jls_config.enable) {
-        (true, true) => {
+    match (is_jls, &cx.common.jls_authed) {
+        (true, crate::jls::JlsState::NotAuthed) => {
             debug!("JLS authencation success");
             cx.common.jls_authed = crate::jls::JlsState::AuthSuccess(config.jls_config.user.clone());
         }
-        (false, true) => {
+        (false, crate::jls::JlsState::NotAuthed) => {
             debug!("JLS authencation failed");
             cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
         }
-        (_, false) => {}
+        (_, crate::jls::JlsState::AuthFailed(_)) => {
+            log::error!("repeated JLS authentication, this may be due to receiving a HelloRetryRequest, which is not allowed in JLS");
+        }
+        (_, crate::jls::JlsState::AuthSuccess(_)) => {
+            log::error!("repeated JLS authentication");
+            unreachable!("JLS authentication should only happen once per connection");
+        }
+        (_, crate::jls::JlsState::Disabled) => {
+            log::trace!("JLS disabled");
+        }
     }
 
     validate_server_hello(cx.common, server_hello)?;

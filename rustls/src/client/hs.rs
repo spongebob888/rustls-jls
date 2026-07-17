@@ -431,20 +431,27 @@ fn emit_client_hello_for_retry(
     }
     let mut buf = Vec::<u8>::new();
     crate::msgs::codec::Codec::encode(&chp,&mut buf);
-    if input.config.jls_config.enable {
-        input.random.0 = input
-            .config
-            .jls_config
-            .user
-            .build_fake_random(
-                input.random.0[0..16]
-                    .try_into()
-                    .unwrap(),
-                &buf,
-            );
-        cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
-    } else {
-        debug!("JLS disabled");
+    match (input.config.jls_config.enable, retryreq) {
+        (true, None) => {
+            input.random.0 = input
+                .config
+                .jls_config
+                .user
+                .build_fake_random(
+                    input.random.0[0..16]
+                        .try_into()
+                        .unwrap(),
+                    &buf,
+                );
+            cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
+        }
+        (true, Some(_)) => {
+            log::warn!("JLS enabled but receiving hello retry request");
+            cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
+        }
+        (false, _) => {
+            debug!("JLS disabled");
+        }
     }
     if let HandshakeMessagePayload(HandshakePayload::ClientHello(inner)) = &mut chp {
         inner.random = input.random;
@@ -867,6 +874,10 @@ impl ExpectServerHelloOrHelloRetryRequest {
         cx: &mut ClientContext<'_>,
         m: Message<'_>,
     ) -> NextStateOrError<'static> {
+        // HRR is illegal in JLS
+        cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
+        // End of JLS HRR handling
+
         let hrr = require_handshake_msg!(
             m,
             HandshakeType::HelloRetryRequest,
