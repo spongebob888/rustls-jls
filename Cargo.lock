@@ -1590,7 +1590,8 @@ dependencies = [
  "logging",
  "rayon",
  "rcgen",
- "rustls 0.23.25",
+ "rustls 0.23.25 (git+https://github.com/rustls/rustls?tag=v/0.23.25)",
+ "rustls 0.23.25 (git+https://github.com/spongebob888/rustls-jls.git?tag=v/0.23.25-1.0.2)",
  "rustls 0.23.36",
  "tikv-jemallocator",
 ]
@@ -2648,6 +2649,21 @@ name = "rustls"
 version = "0.23.25"
 source = "git+https://github.com/rustls/rustls?tag=v/0.23.25#1e2b4f3c946ad159ee9774a14dec23c544603a49"
 dependencies = [
+ "aws-lc-rs",
+ "log",
+ "once_cell",
+ "rustls-pki-types",
+ "rustls-webpki",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "rustls"
+version = "0.23.25"
+source = "git+https://github.com/spongebob888/rustls-jls.git?tag=v/0.23.25-1.0.2#7492120f056900478f522f2c51c2fb5a70245f4d"
+dependencies = [
+ "aes-gcm",
  "aws-lc-rs",
  "log",
  "once_cell",
