@@ -446,7 +446,7 @@ fn emit_client_hello_for_retry(
             cx.common.jls_authed = crate::jls::JlsState::NotAuthed;
         }
         (true, Some(_)) => {
-            log::warn!("JLS enabled but receiving hello retry request");
+            crate::log::warn!("JLS enabled but receiving hello retry request");
             cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
         }
         (false, _) => {
