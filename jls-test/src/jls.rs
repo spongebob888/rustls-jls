@@ -256,6 +256,7 @@ fn test_false_jls_server() {
 
 #[test]
 fn test_hello_retry_request_with_jls_enabled_falls_back_to_forwarding() {
+    let _ = env_logger::try_init();
     use rustls::crypto::aws_lc_rs::kx_group::{SECP384R1, X25519};
 
     let password = "test-jls-password";
@@ -320,4 +321,100 @@ fn test_hello_retry_request_with_jls_enabled_falls_back_to_forwarding() {
     ));
     assert_eq!(server.handshake_kind(), None);
     assert!(!server.wants_write(), "server unexpectedly emitted an HRR");
+}
+
+#[test]
+fn test_jls_client_marks_auth_failed_on_hello_retry_request_from_tls_server() {
+    let _ = env_logger::try_init();
+    use rustls::HandshakeKind;
+    use rustls::crypto::aws_lc_rs::kx_group::{SECP384R1, X25519};
+
+    let provider = rustls::crypto::aws_lc_rs::default_provider();
+    let pki = TestPki::new();
+    let mut roots = RootCertStore::empty();
+    roots.add(pki.ca_cert.clone()).unwrap();
+
+    // A JLS client sends a SECP384R1 key share first, while this ordinary TLS
+    // server selects X25519 and therefore responds with HelloRetryRequest.
+    let mut client_config = ClientConfig::builder_with_provider(
+        rustls::crypto::CryptoProvider {
+            kx_groups: vec![SECP384R1, X25519],
+            ..provider.clone()
+        }
+        .into(),
+    )
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    client_config.jls_config = JlsClientConfig::new("test-jls-password", "test-jls-iv");
+
+    let mut server_config = ServerConfig::builder_with_provider(
+        rustls::crypto::CryptoProvider {
+            kx_groups: vec![X25519],
+            ..provider
+        }
+        .into(),
+    )
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_no_client_auth()
+    .with_single_cert(vec![pki.server_cert_der], pki.server_key_der)
+    .unwrap();
+    server_config.jls_config = Arc::new(JlsServerConfig::default().enable(false));
+
+    let server_name = "localhost".try_into().unwrap();
+    let mut client = rustls::ClientConnection::new(Arc::new(client_config), server_name).unwrap();
+    let mut server = rustls::ServerConnection::new(Arc::new(server_config)).unwrap();
+
+    let mut client_hello = Vec::new();
+    client.write_tls(&mut client_hello).unwrap();
+    server.read_tls(&mut client_hello.as_slice()).unwrap();
+    server.process_new_packets().unwrap();
+
+    assert!(matches!(server.jls_state(), JlsState::Disabled));
+    assert_eq!(
+        server.handshake_kind(),
+        Some(HandshakeKind::FullWithHelloRetryRequest)
+    );
+
+    let mut hello_retry_request = Vec::new();
+    server.write_tls(&mut hello_retry_request).unwrap();
+    assert!(!hello_retry_request.is_empty());
+    client
+        .read_tls(&mut hello_retry_request.as_slice())
+        .unwrap();
+    client.process_new_packets().unwrap();
+
+    assert!(matches!(client.jls_state(), JlsState::AuthFailed(None)));
+    assert_eq!(
+        client.handshake_kind(),
+        Some(HandshakeKind::FullWithHelloRetryRequest)
+    );
+    assert!(client.wants_write(), "client did not produce the retry ClientHello");
+
+    for _ in 0..10 {
+        if client.wants_write() {
+            let mut client_messages = Vec::new();
+            client.write_tls(&mut client_messages).unwrap();
+            server.read_tls(&mut client_messages.as_slice()).unwrap();
+            server.process_new_packets().unwrap();
+        }
+
+        if server.wants_write() {
+            let mut server_messages = Vec::new();
+            server.write_tls(&mut server_messages).unwrap();
+            client.read_tls(&mut server_messages.as_slice()).unwrap();
+            client.process_new_packets().unwrap();
+        }
+
+        if !client.is_handshaking() && !server.is_handshaking() {
+            break;
+        }
+    }
+
+    assert!(!client.is_handshaking(), "client handshake did not finish");
+    assert!(!server.is_handshaking(), "server handshake did not finish");
+    assert!(matches!(client.jls_state(), JlsState::AuthFailed(None)));
+    assert!(matches!(server.jls_state(), JlsState::Disabled));
 }

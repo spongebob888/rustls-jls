@@ -221,12 +221,12 @@ mod client_hello {
                         PeerMisbehaved::RefusedToFollowHelloRetryRequest,
                     ));
                 }
-                //JLS authentication
-                log::error!("Hello Retry request is illegal in JLS");
-                cx.common.jls_authed = crate::jls::JlsState::AuthFailed(
-                    self.config.jls_config.upstream_addr.clone()
-                );
-                if let crate::jls::JlsState::AuthFailed(_) = cx.common.jls_authed {
+                // HelloRetryRequest is illegal for an authenticated JLS connection.
+                if matches!(cx.common.jls_authed, crate::jls::JlsState::AuthSuccess(_)) {
+                    log::error!("Hello Retry request is illegal in JLS");
+                    cx.common.jls_authed = crate::jls::JlsState::AuthFailed(
+                        self.config.jls_config.upstream_addr.clone(),
+                    );
                     return Ok(Box::new(crate::server::jls::ExpectForward {}));
                 }
 

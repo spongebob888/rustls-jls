@@ -105,8 +105,11 @@ pub(super) fn handle_server_hello(
             debug!("JLS authencation failed");
             cx.common.jls_authed = crate::jls::JlsState::AuthFailed(None);
         }
-        (_, crate::jls::JlsState::AuthFailed(_)) => {
-            log::error!("repeated JLS authentication, this may be due to receiving a HelloRetryRequest, which is not allowed in JLS");
+        (false, crate::jls::JlsState::AuthFailed(_)) => { // Receiving an HRR set authfailed
+            log::warn!("JLS authenticate failed and may have received a HelloRetryRequest");
+        }
+        (true, crate::jls::JlsState::AuthFailed(_)) => {
+            log::error!("Protocol Violation: JLS authenticate success and received a HelloRetryRequest");
         }
         (_, crate::jls::JlsState::AuthSuccess(_)) => {
             log::error!("repeated JLS authentication");
