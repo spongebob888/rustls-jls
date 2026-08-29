@@ -1,14 +1,14 @@
 use std::string::String;
 
-use crate::log::{trace, info};
+use crate::log::{debug, trace};
 use crate::msgs::codec::Codec;
 use crate::msgs::handshake::{ClientHelloPayload, PresharedKeyBinder};
 
+use crate::crypto::SecureRandom;
 use alloc::vec;
 use alloc::vec::Vec;
 #[cfg(not(feature = "ring"))]
 use aws_lc_rs::digest::{SHA256, digest};
-use crate::crypto::SecureRandom;
 #[cfg(feature = "ring")]
 use ring::digest::{SHA256, digest};
 
@@ -86,21 +86,27 @@ impl JlsUser {
     }
     /// Build a fake random from a true random with given auth_data, retry if illegal fake random generated
     /// If secure_random fails to generate random, use the given random to build fake random
-    pub fn build_server_fake_random(&self, random: &[u8; 16], secure_random: &dyn SecureRandom, auth_data: &[u8]) -> [u8; 32] {
+    pub fn build_server_fake_random(
+        &self,
+        random: &[u8; 16],
+        secure_random: &dyn SecureRandom,
+        auth_data: &[u8],
+    ) -> [u8; 32] {
         loop {
             let mut fake_random = [0u8; 32];
             match secure_random.fill(&mut fake_random) {
                 Ok(()) => {
-                    let fake_random = self.build_fake_random(fake_random[16..32].try_into().unwrap(), auth_data);
+                    let fake_random =
+                        self.build_fake_random(fake_random[16..32].try_into().unwrap(), auth_data);
                     if !is_illegal_fake_random(&fake_random) {
                         return fake_random;
                     }
-                    info!("illegal fake random generated, retrying...");
+                    debug!("illegal fake random generated, retrying...");
                 }
                 Err(_) => {
                     let fake_random = self.build_fake_random(random, auth_data);
                     return fake_random;
-                },
+                }
             }
         }
     }
@@ -210,7 +216,6 @@ mod tests {
         let mut random = [0u8; 32];
         random[24..32].copy_from_slice(&TLS13_DOWNGRADE_SENTINEL_TLS12);
         assert!(is_illegal_fake_random(&random));
-
 
         assert!(!is_illegal_fake_random(&[0u8; 32]));
     }
