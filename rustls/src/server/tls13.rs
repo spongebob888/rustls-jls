@@ -557,10 +557,11 @@ mod client_hello {
         let fake_random = jls_chosen_user
             .as_ref()
             .map(|user| {
-                user.build_fake_random(
+                user.build_server_fake_random(
                     randoms.server[0..16]
-                        .try_into()
+                .try_into()
                         .unwrap(),
+                    config.provider.secure_random,
                     &buf,
                 )
             })

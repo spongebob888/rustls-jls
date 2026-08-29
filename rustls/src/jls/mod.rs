@@ -8,6 +8,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 #[cfg(not(feature = "ring"))]
 use aws_lc_rs::digest::{SHA256, digest};
+use crate::crypto::SecureRandom;
 #[cfg(feature = "ring")]
 use ring::digest::{SHA256, digest};
 
@@ -43,6 +44,15 @@ pub struct JlsUser {
     pub user_iv: String,
 }
 
+const TLS13_DOWNGRADE_SENTINEL_TLS12: [u8; 8] = *b"DOWNGRD\x01";
+const TLS13_DOWNGRADE_SENTINEL_TLS11_OR_BELOW: [u8; 8] = *b"DOWNGRD\x00";
+const TLS13_HELLO_RETRY_REQUEST_SUFFIX: [u8; 8] = [0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C];
+const ILLEGAL_FAKE_RANDOM_SUFFIX: [&[u8; 8]; 3] = [
+    &TLS13_DOWNGRADE_SENTINEL_TLS12,
+    &TLS13_DOWNGRADE_SENTINEL_TLS11_OR_BELOW,
+    &TLS13_HELLO_RETRY_REQUEST_SUFFIX,
+];
+
 impl JlsUser {
     /// Create a new JlsUser
     pub fn new(user_pwd: &str, user_iv: &str) -> JlsUser {
@@ -52,7 +62,7 @@ impl JlsUser {
         }
     }
 
-    /// Build a fake random from a true random with given keyshare
+    /// Build a fake random from a true random with given auth_data
     pub fn build_fake_random(&self, random: &[u8; 16], auth_data: &[u8]) -> [u8; 32] {
         let mut iv = self.user_iv.as_bytes().to_vec();
         iv.extend_from_slice(auth_data);
@@ -73,6 +83,26 @@ impl JlsUser {
             .unwrap();
 
         buffer.try_into().unwrap()
+    }
+    /// Build a fake random from a true random with given auth_data, retry if illegal fake random generated
+    /// If secure_random fails to generate random, use the given random to build fake random
+    pub fn build_server_fake_random(&self, random: &[u8; 16], secure_random: &dyn SecureRandom, auth_data: &[u8]) -> [u8; 32] {
+        loop {
+            let mut fake_random = [0u8; 32];
+            match secure_random.fill(&mut fake_random) {
+                Ok(()) => {
+                    let fake_random = self.build_fake_random(fake_random[16..32].try_into().unwrap(), auth_data);
+                    if !is_illegal_fake_random(&fake_random) {
+                        return fake_random;
+                    }
+                    log::info!("illegal fake random generated, retrying...");
+                }
+                Err(_) => {
+                    let fake_random = self.build_fake_random(random, auth_data);
+                    return fake_random;
+                },
+            }
+        }
     }
 
     /// Check if it's a valid fake random
@@ -136,6 +166,11 @@ impl Default for JlsClientConfig {
     }
 }
 
+pub(crate) fn is_illegal_fake_random(random: &[u8; 32]) -> bool {
+    let suffix: &[u8; 8] = &random[24..32].try_into().unwrap();
+    ILLEGAL_FAKE_RANDOM_SUFFIX.contains(&suffix)
+}
+
 // fill zero in the psk binders field.
 pub(crate) fn set_zero_psk_binders(chp: &ClientHelloPayload, msg: &mut [u8]) {
     if let Some(psk) = chp.preshared_key_offer.as_ref() {
@@ -164,4 +199,19 @@ pub enum JlsState {
     NotAuthed,
     /// JLS is not enabled
     Disabled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn illegal_fake_random() {
+        let mut random = [0u8; 32];
+        random[24..32].copy_from_slice(&TLS13_DOWNGRADE_SENTINEL_TLS12);
+        assert!(is_illegal_fake_random(&random));
+
+
+        assert!(!is_illegal_fake_random(&[0u8; 32]));
+    }
 }
