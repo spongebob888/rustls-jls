@@ -1,29 +1,11 @@
 [workspace]
 members = [
-  # Bogo test shim
-  "bogo",
-  # CI benchmarks
-  "ci-bench",
-  # Network-based tests
-  "connect-tests",
   # tests and example code
   "examples",
-  # Tests that require OpenSSL
-  "openssl-tests",
-  # example of custom provider
-  "provider-example",
   # the main library and tests
   "rustls",
-  # common code for testing the core crate
-  "rustls-test",
-  # benchmarking tool
-  "rustls-bench",
   # experimental post-quantum algorithm support
   "rustls-post-quantum",
-  # rustls cryptography provider integration tests
-  "rustls-provider-test",
-  # rustls cryptography provider for fuzzing
-  "rustls-fuzzing-provider",
   # jls test
   "jls-test"
 ]
@@ -104,7 +86,3 @@ zlib-rs = "0.5"
 codegen-units = 1
 lto = true
 
-# ensure all our tests are against the local copy, never
-# against the latest _published_ copy.
-[patch.crates-io]
-rustls = { path = "rustls" }
