@@ -1,6 +1,6 @@
 use std::string::String;
 
-use crate::log::trace;
+use crate::log::{trace, info};
 use crate::msgs::codec::Codec;
 use crate::msgs::handshake::{ClientHelloPayload, PresharedKeyBinder};
 
@@ -95,7 +95,7 @@ impl JlsUser {
                     if !is_illegal_fake_random(&fake_random) {
                         return fake_random;
                     }
-                    log::info!("illegal fake random generated, retrying...");
+                    info!("illegal fake random generated, retrying...");
                 }
                 Err(_) => {
                     let fake_random = self.build_fake_random(random, auth_data);
