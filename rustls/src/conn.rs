@@ -902,8 +902,10 @@ impl<Data> ConnectionCore<Data> {
     ) -> Result<IoState, Error> {
         // Tcp Forward
         // If jls is enabled and authentication is failed, we should not process any TLS message,
-        if matches!(self.common_state.jls_authed, crate::jls::JlsState::AuthFailed(_))
-            && self.common_state.side == crate::Side::Server
+        if matches!(
+            self.common_state.jls_authed,
+            crate::jls::JlsState::AuthFailed(_)
+        ) && self.common_state.side == crate::Side::Server
         {
             return Ok(self.common_state.current_io_state());
         }

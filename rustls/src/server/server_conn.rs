@@ -983,7 +983,7 @@ impl UnbufferedServerConnection {
     /// Get upstream address
     pub fn get_upstream_addr(&self) -> Option<std::string::String> {
         match &self.inner.core.common_state.jls_authed {
-            crate::jls::JlsState::AuthFailed(upstream_addr ) => upstream_addr.clone(),
+            crate::jls::JlsState::AuthFailed(upstream_addr) => upstream_addr.clone(),
             _ => None,
         }
     }

@@ -26,7 +26,10 @@ fn client_one_rtt(mut config: ClientConfig, port: u16) {
 
     let test_vector = b"test";
     tls.write_all(test_vector).unwrap();
-    assert!(matches!(tls.conn.jls_state(), rustls::jls::JlsState::AuthSuccess(_)));
+    assert!(matches!(
+        tls.conn.jls_state(),
+        rustls::jls::JlsState::AuthSuccess(_)
+    ));
     assert!(tls.conn.is_early_data_accepted() == false);
     let ciphersuite = tls
         .conn
@@ -250,7 +253,7 @@ fn test_false_jls_server() {
     });
 
     let _ = server_up.join();
- 
+
     thread::sleep(time::Duration::from_millis(2000));
 }
 
@@ -368,8 +371,12 @@ fn test_jls_client_marks_auth_failed_on_hello_retry_request_from_tls_server() {
     let mut server = rustls::ServerConnection::new(Arc::new(server_config)).unwrap();
 
     let mut client_hello = Vec::new();
-    client.write_tls(&mut client_hello).unwrap();
-    server.read_tls(&mut client_hello.as_slice()).unwrap();
+    client
+        .write_tls(&mut client_hello)
+        .unwrap();
+    server
+        .read_tls(&mut client_hello.as_slice())
+        .unwrap();
     server.process_new_packets().unwrap();
 
     assert!(matches!(server.jls_state(), JlsState::Disabled));
@@ -379,7 +386,9 @@ fn test_jls_client_marks_auth_failed_on_hello_retry_request_from_tls_server() {
     );
 
     let mut hello_retry_request = Vec::new();
-    server.write_tls(&mut hello_retry_request).unwrap();
+    server
+        .write_tls(&mut hello_retry_request)
+        .unwrap();
     assert!(!hello_retry_request.is_empty());
     client
         .read_tls(&mut hello_retry_request.as_slice())
@@ -391,20 +400,31 @@ fn test_jls_client_marks_auth_failed_on_hello_retry_request_from_tls_server() {
         client.handshake_kind(),
         Some(HandshakeKind::FullWithHelloRetryRequest)
     );
-    assert!(client.wants_write(), "client did not produce the retry ClientHello");
+    assert!(
+        client.wants_write(),
+        "client did not produce the retry ClientHello"
+    );
 
     for _ in 0..10 {
         if client.wants_write() {
             let mut client_messages = Vec::new();
-            client.write_tls(&mut client_messages).unwrap();
-            server.read_tls(&mut client_messages.as_slice()).unwrap();
+            client
+                .write_tls(&mut client_messages)
+                .unwrap();
+            server
+                .read_tls(&mut client_messages.as_slice())
+                .unwrap();
             server.process_new_packets().unwrap();
         }
 
         if server.wants_write() {
             let mut server_messages = Vec::new();
-            server.write_tls(&mut server_messages).unwrap();
-            client.read_tls(&mut server_messages.as_slice()).unwrap();
+            server
+                .write_tls(&mut server_messages)
+                .unwrap();
+            client
+                .read_tls(&mut server_messages.as_slice())
+                .unwrap();
             client.process_new_packets().unwrap();
         }
 

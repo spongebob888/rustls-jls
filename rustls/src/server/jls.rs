@@ -1,19 +1,17 @@
 use crate::{
     jls::{JlsServerConfig, JlsState},
-    log::{debug, error, warn},
+    log::{debug, warn},
     msgs::message::MessagePayload,
 };
 
 use alloc::boxed::Box;
 use alloc::string::ToString;
-use alloc::vec::Vec;
 
 use crate::{
-    Error, HandshakeType,
+    Error,
     common_state::{Context, State},
     msgs::{
-        codec::Codec,
-        handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random},
+        handshake::{HandshakeMessagePayload, HandshakePayload},
         message::Message,
     },
 };

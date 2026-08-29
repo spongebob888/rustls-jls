@@ -430,7 +430,7 @@ fn emit_client_hello_for_retry(
         inner.random = Random([0; 32]);
     }
     let mut buf = Vec::<u8>::new();
-    crate::msgs::codec::Codec::encode(&chp,&mut buf);
+    crate::msgs::codec::Codec::encode(&chp, &mut buf);
     match (input.config.jls_config.enable, retryreq) {
         (true, None) => {
             input.random.0 = input
